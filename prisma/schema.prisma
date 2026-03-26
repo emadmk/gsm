@@ -251,6 +251,25 @@ model ContactMessage {
   updatedAt DateTime @updatedAt
 }
 
+// ==================== Brands ====================
+
+model Brand {
+  id          Int       @id @default(autoincrement())
+  strapiId    Int?      @unique
+  name        String
+  nameEn      String?
+  slug        String    @unique
+  logo        String?
+  description String?   @db.Text
+  priority    Int       @default(0)
+  viewCount   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([slug])
+  @@index([strapiId])
+}
+
 // ==================== Ads ====================
 
 model Ad {
