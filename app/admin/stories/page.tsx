@@ -1,14 +1,29 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, X, Loader2 } from 'lucide-react'
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  Loader2,
+  GripVertical,
+} from 'lucide-react'
+import MediaUpload from '@/components/admin/MediaUpload'
+
+interface StoryItem {
+  type: 'image' | 'video'
+  url: string
+  caption?: string
+}
 
 interface Story {
   id: number
   title: string
   cover: string | null
-  isActive: boolean
+  items: StoryItem[] | null
   order: number
+  isActive: boolean
   createdAt: string
 }
 
@@ -22,8 +37,9 @@ export default function StoriesPage() {
   const [form, setForm] = useState({
     title: '',
     cover: '',
-    isActive: true,
+    items: [] as StoryItem[],
     order: 0,
+    isActive: true,
   })
 
   const fetchStories = useCallback(async () => {
@@ -43,7 +59,7 @@ export default function StoriesPage() {
   }, [fetchStories])
 
   const resetForm = () => {
-    setForm({ title: '', cover: '', isActive: true, order: 0 })
+    setForm({ title: '', cover: '', items: [], order: 0, isActive: true })
     setEditingId(null)
     setShowForm(false)
   }
@@ -52,8 +68,9 @@ export default function StoriesPage() {
     setForm({
       title: story.title,
       cover: story.cover || '',
-      isActive: story.isActive,
+      items: (story.items as StoryItem[]) || [],
       order: story.order,
+      isActive: story.isActive,
     })
     setEditingId(story.id)
     setShowForm(true)
@@ -67,8 +84,9 @@ export default function StoriesPage() {
       const payload = {
         title: form.title,
         cover: form.cover || undefined,
-        isActive: form.isActive,
+        items: form.items,
         order: form.order,
+        isActive: form.isActive,
       }
 
       const url = editingId ? `/api/stories/${editingId}` : '/api/stories'
@@ -114,6 +132,26 @@ export default function StoriesPage() {
     }
   }
 
+  const addItem = () => {
+    setForm({
+      ...form,
+      items: [...form.items, { type: 'image', url: '', caption: '' }],
+    })
+  }
+
+  const removeItem = (index: number) => {
+    setForm({
+      ...form,
+      items: form.items.filter((_, i) => i !== index),
+    })
+  }
+
+  const updateItem = (index: number, updates: Partial<StoryItem>) => {
+    const newItems = [...form.items]
+    newItems[index] = { ...newItems[index], ...updates }
+    setForm({ ...form, items: newItems })
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -152,68 +190,151 @@ export default function StoriesPage() {
               <X className="w-5 h-5 text-gray-400" />
             </button>
           </div>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                عنوان *
-              </label>
-              <input
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                required
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="عنوان استوری"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                تصویر کاور (URL)
-              </label>
-              <input
-                value={form.cover}
-                onChange={(e) => setForm({ ...form, cover: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                dir="ltr"
-                placeholder="https://..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                ترتیب
-              </label>
-              <input
-                value={form.order}
-                onChange={(e) =>
-                  setForm({ ...form, order: parseInt(e.target.value) || 0 })
-                }
-                type="number"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="0"
-              />
-            </div>
-            <div className="flex items-end pb-1">
-              <label className="flex items-center gap-2 cursor-pointer">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  عنوان *
+                </label>
                 <input
-                  type="checkbox"
-                  checked={form.isActive}
+                  value={form.title}
                   onChange={(e) =>
-                    setForm({ ...form, isActive: e.target.checked })
+                    setForm({ ...form, title: e.target.value })
                   }
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  required
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  placeholder="عنوان استوری"
                 />
-                <span className="text-sm text-gray-700">فعال</span>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ترتیب
+                </label>
+                <input
+                  type="number"
+                  value={form.order}
+                  onChange={(e) =>
+                    setForm({ ...form, order: parseInt(e.target.value) || 0 })
+                  }
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <MediaUpload
+              value={form.cover}
+              onChange={(url) => setForm({ ...form, cover: url })}
+              label="کاور استوری"
+            />
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(e) =>
+                  setForm({ ...form, isActive: e.target.checked })
+                }
+                id="storyIsActive"
+                className="w-4 h-4 text-blue-600 rounded border-gray-300"
+              />
+              <label htmlFor="storyIsActive" className="text-sm font-medium text-gray-700">
+                فعال
               </label>
             </div>
-            <div className="md:col-span-2">
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {editingId ? 'بروزرسانی' : 'ذخیره'}
-              </button>
+
+            {/* Story Items */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                آیتم‌های استوری
+              </label>
+              <div className="space-y-3">
+                {form.items.map((item, index) => (
+                  <div
+                    key={index}
+                    className="border border-gray-200 rounded-lg p-4 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-gray-400">
+                        <GripVertical className="w-4 h-4" />
+                        <span className="text-sm">
+                          آیتم {(index + 1).toLocaleString('fa-IR')}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(index)}
+                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">
+                          نوع
+                        </label>
+                        <select
+                          value={item.type}
+                          onChange={(e) =>
+                            updateItem(index, {
+                              type: e.target.value as 'image' | 'video',
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                        >
+                          <option value="image">تصویر</option>
+                          <option value="video">ویدیو</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">
+                          کپشن
+                        </label>
+                        <input
+                          value={item.caption || ''}
+                          onChange={(e) =>
+                            updateItem(index, { caption: e.target.value })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                          placeholder="توضیح"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        آدرس فایل
+                      </label>
+                      <input
+                        value={item.url}
+                        onChange={(e) =>
+                          updateItem(index, { url: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                        dir="ltr"
+                        placeholder="https://..."
+                      />
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addItem}
+                  className="flex items-center gap-2 px-4 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors w-full justify-center"
+                >
+                  <Plus className="w-4 h-4" />
+                  افزودن آیتم
+                </button>
+              </div>
             </div>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {editingId ? 'بروزرسانی' : 'ذخیره'}
+            </button>
           </form>
         </div>
       )}
@@ -226,6 +347,7 @@ export default function StoriesPage() {
               <tr>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">کاور</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">عنوان</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">آیتم‌ها</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">ترتیب</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">وضعیت</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">عملیات</th>
@@ -249,6 +371,9 @@ export default function StoriesPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 font-medium">{story.title}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {((story.items as StoryItem[]) || []).length.toLocaleString('fa-IR')}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">
                     {story.order.toLocaleString('fa-IR')}
                   </td>
@@ -284,7 +409,7 @@ export default function StoriesPage() {
               ))}
               {stories.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                     استوری‌ای وجود ندارد
                   </td>
                 </tr>
