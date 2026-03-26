@@ -165,32 +165,31 @@ async function migrateAuthors(conn: mysql.Connection) {
   )
   console.log(`  Found ${(adminRows as any[]).length} admin_users`)
 
-  // Also try up_users (Strapi frontend users used as publishers)
+  // Only get up_users who actually have published posts
   let upUsers: any[] = []
   try {
     const [upRows] = await conn.execute(
-      'SELECT id, username, email FROM up_users'
+      `SELECT DISTINCT u.id, u.username, u.email
+       FROM up_users u
+       INNER JOIN posts_publisher_links pl ON pl.user_id = u.id`
     )
     upUsers = upRows as any[]
-    console.log(`  Found ${upUsers.length} up_users`)
+    console.log(`  Found ${upUsers.length} up_users with posts`)
   } catch {
     console.log('  up_users table not found, skipping')
   }
 
-  // Merge both - admin_users first, then up_users with offset to avoid ID collision
+  // Merge both
   const users = [
     ...(adminRows as any[]).map((u: any) => ({
       id: u.id,
-      name: `${u.firstname || ''} ${u.lastname || ''}`.trim() || u.username || 'نویسنده GSM',
+      name: `${u.firstname || ''} ${u.lastname || ''}`.trim() || u.username || 'GSM',
       email: u.email,
-      source: 'admin'
     })),
     ...upUsers.map((u: any) => ({
-      id: u.id + 100000, // offset to avoid collision with admin IDs
-      strapiId: u.id,
-      name: u.username || 'نویسنده GSM',
+      id: u.id + 100000,
+      name: (u.username || 'GSM').replace(/\x00/g, ''),
       email: u.email,
-      source: 'up_user'
     }))
   ]
   console.log(`  Total authors to migrate: ${users.length}`)
@@ -199,6 +198,8 @@ async function migrateAuthors(conn: mysql.Connection) {
 
   let count = 0
   for (const user of users) {
+    // Clean null bytes from name
+    user.name = (user.name || 'GSM').replace(/\x00/g, '').trim() || `نویسنده ${user.id}`
     const slug = slugify(user.name) || `author-${user.id}`
     try {
       await prisma.author.upsert({
