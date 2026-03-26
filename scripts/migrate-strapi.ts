@@ -365,13 +365,43 @@ async function migrateComments(conn: mysql.Connection) {
   console.log('\n=== Migrating Comments ===')
 
   // comments_comment.related field contains the related entity string like "api::post.post:12345"
+  // First check which columns exist
+  let query = `SELECT id, content, created_at, updated_at FROM comments_comment LIMIT 1`
+  try {
+    await conn.execute(query)
+  } catch {
+    console.log('  comments_comment table not found or empty, skipping')
+    return
+  }
+
+  // Try to find all columns that exist
+  const [cols] = await conn.execute(`SHOW COLUMNS FROM comments_comment`)
+  const colNames = (cols as any[]).map((c: any) => c.Field)
+  console.log(`  Available columns: ${colNames.join(', ')}`)
+
+  const hasRemoved = colNames.includes('removed')
+  const hasBlocked = colNames.includes('blocked')
+  const hasApproval = colNames.includes('approval_status')
+  const hasIsAdmin = colNames.includes('is_admin_comment')
+  const hasAuthorName = colNames.includes('author_name') || colNames.includes('authorName')
+  const hasAuthorEmail = colNames.includes('author_email') || colNames.includes('authorEmail')
+  const hasRelated = colNames.includes('related')
+  const authorNameCol = colNames.includes('author_name') ? 'author_name' : (colNames.includes('authorName') ? 'authorName' : null)
+  const authorEmailCol = colNames.includes('author_email') ? 'author_email' : (colNames.includes('authorEmail') ? 'authorEmail' : null)
+
+  const selectCols = ['id', 'content', 'created_at', 'updated_at']
+  if (hasBlocked) selectCols.push('blocked')
+  if (hasApproval) selectCols.push('approval_status')
+  if (hasIsAdmin) selectCols.push('is_admin_comment')
+  if (authorNameCol) selectCols.push(authorNameCol)
+  if (authorEmailCol) selectCols.push(authorEmailCol)
+  if (hasRelated) selectCols.push('related')
+
+  let whereClause = 'WHERE content IS NOT NULL'
+  if (hasRemoved) whereClause += ' AND (removed IS NULL OR removed != 1)'
+
   const [rows] = await conn.execute(
-    `SELECT id, content, author_name, author_email, author_avatar,
-            blocked, is_admin_comment, approval_status, related,
-            created_at, updated_at
-     FROM comments_comment
-     WHERE content IS NOT NULL AND removed != 1
-     ORDER BY id ASC`
+    `SELECT ${selectCols.join(', ')} FROM comments_comment ${whereClause} ORDER BY id ASC`
   )
   const comments = rows as any[]
   console.log(`Found ${comments.length} comments`)
@@ -379,46 +409,53 @@ async function migrateComments(conn: mysql.Connection) {
   if (DRY_RUN) return
 
   let count = 0
+  let skipped = 0
   for (const comment of comments) {
-    // Parse related field to get post ID (format: "api::post.post:12345")
+    // Parse related field to get post ID
     let postId: number | null = null
     if (comment.related) {
-      const match = comment.related.match(/:(\d+)$/)
+      // Format might be "api::post.post:12345" or just a number
+      const match = comment.related.toString().match(/(\d+)$/)
       if (match) postId = parseInt(match[1])
     }
 
-    if (!postId) continue
+    if (!postId) { skipped++; continue }
 
     // Check if the article exists
     const article = await prisma.article.findFirst({ where: { id: postId } })
-    if (!article) continue
+    if (!article) { skipped++; continue }
+
+    const authorName = comment[authorNameCol || 'author_name'] || comment.authorName || 'ناشناس'
+    const authorEmail = comment[authorEmailCol || 'author_email'] || comment.authorEmail || null
 
     try {
       await prisma.comment.upsert({
         where: { strapiId: comment.id },
         update: {
           content: comment.content,
-          authorName: comment.author_name || 'ناشناس',
-          authorEmail: comment.author_email,
-          isApproved: comment.approval_status === 'APPROVED' && !comment.blocked,
-          isAdmin: comment.is_admin_comment === 1,
+          authorName,
+          authorEmail,
+          isApproved: hasApproval ? comment.approval_status === 'APPROVED' : !comment.blocked,
+          isAdmin: hasIsAdmin ? comment.is_admin_comment === 1 : false,
         },
         create: {
           strapiId: comment.id,
           articleId: article.id,
           content: comment.content,
-          authorName: comment.author_name || 'ناشناس',
-          authorEmail: comment.author_email,
-          isApproved: comment.approval_status === 'APPROVED' && !comment.blocked,
-          isAdmin: comment.is_admin_comment === 1,
+          authorName,
+          authorEmail,
+          isApproved: hasApproval ? comment.approval_status === 'APPROVED' : !comment.blocked,
+          isAdmin: hasIsAdmin ? comment.is_admin_comment === 1 : false,
           createdAt: comment.created_at || new Date(),
         },
       })
       count++
+      if (count % 5000 === 0) console.log(`  Comment progress: ${count}`)
     } catch (err: any) {
-      if (count < 20) console.error(`  Error comment ${comment.id}: ${err.message}`)
+      if (count < 10) console.error(`  Error comment ${comment.id}: ${err.message}`)
     }
   }
+  console.log(`  Skipped ${skipped} comments (no matching post)`)
 
   // Set thread (parent) relationships
   console.log('  Setting comment thread relationships...')
