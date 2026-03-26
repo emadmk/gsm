@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Plus, Pencil, Trash2, X, Loader2 } from 'lucide-react'
+import MediaUpload from '@/components/admin/MediaUpload'
 
 interface Ad {
   id: number
@@ -15,15 +16,19 @@ interface Ad {
 }
 
 const adZones = [
-  { value: 'header', label: 'هدر سایت' },
+  { value: 'home_header', label: 'صفحه اصلی - هدر' },
+  { value: 'home_middle', label: 'صفحه اصلی - میانی' },
+  { value: 'home_footer', label: 'صفحه اصلی - فوتر' },
+  { value: 'news_header', label: 'اخبار - هدر' },
+  { value: 'news_middle', label: 'اخبار - میانی' },
+  { value: 'news_footer', label: 'اخبار - فوتر' },
+  { value: 'article_header', label: 'مقالات - هدر' },
+  { value: 'article_middle', label: 'مقالات - میانی' },
+  { value: 'article_footer', label: 'مقالات - فوتر' },
   { value: 'sidebar_top', label: 'سایدبار بالا' },
   { value: 'sidebar_bottom', label: 'سایدبار پایین' },
-  { value: 'article_top', label: 'بالای مقاله' },
-  { value: 'article_middle', label: 'وسط مقاله' },
-  { value: 'article_bottom', label: 'پایین مقاله' },
-  { value: 'footer', label: 'فوتر' },
-  { value: 'popup', label: 'پاپ‌آپ' },
   { value: 'between_posts', label: 'بین مطالب' },
+  { value: 'popup', label: 'پاپ‌آپ' },
 ]
 
 const zoneLabels: Record<string, string> = Object.fromEntries(
@@ -244,17 +249,10 @@ export default function AdsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                تصویر (URL)
-              </label>
-              <input
+              <MediaUpload
                 value={form.imageUrl}
-                onChange={(e) =>
-                  setForm({ ...form, imageUrl: e.target.value })
-                }
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                dir="ltr"
-                placeholder="https://..."
+                onChange={(url) => setForm({ ...form, imageUrl: url })}
+                label="تصویر تبلیغ"
               />
             </div>
             <div>
