@@ -1,0 +1,367 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'IRANSansX';
+  src: url('/fonts/IRANSansX-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IRANSansX';
+  src: url('/fonts/IRANSansX-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IRANSansX';
+  src: url('/fonts/IRANSansX-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IRANSansX';
+  src: url('/fonts/IRANSansX-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --primary-20: 250, 252, 255;
+    --primary-500: 25, 123, 255;
+    --primary-600: 0, 88, 204;
+    --primary-700: 0, 65, 153;
+    --green-20: 235, 248, 243;
+    --green-300: 0, 196, 118;
+    --green-400: 0, 166, 99;
+    --green-500: 0, 137, 81;
+    --yellow-20: 255, 244, 217;
+    --yellow-300: 255, 191, 25;
+    --yellow-400: 245, 181, 16;
+    --yellow-500: 224, 165, 13;
+    --red-20: 255, 246, 248;
+    --red-400: 255, 25, 80;
+    --red-500: 190, 29, 51;
+    --red-600: 153, 16, 35;
+    --gray-20: 248, 250, 252;
+    --gray-50: 241, 245, 249;
+    --gray-100: 226, 232, 240;
+    --gray-200: 203, 213, 225;
+    --gray-300: 148, 163, 184;
+    --gray-400: 100, 116, 139;
+    --gray-500: 100, 116, 139;
+    --gray-600: 51, 65, 85;
+    --gray-700: 30, 41, 59;
+    --gray-800: 15, 23, 42;
+    --gray-900: 2, 6, 23;
+    --orange-1: 255, 251, 243;
+    --orange-2: 242, 222, 173;
+    --orange-3: 224, 165, 13;
+  }
+
+  html {
+    direction: rtl;
+    font-family: 'IRANSansX', arial, sans-serif;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-white text-gray-800 antialiased min-h-screen;
+  }
+
+  * {
+    @apply box-border;
+  }
+
+  ::selection {
+    background-color: rgba(25, 123, 255, 0.15);
+    color: rgb(var(--gray-900));
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-1;
+  }
+
+  input,
+  textarea,
+  select {
+    text-align: right;
+  }
+}
+
+/* ===== Post Content Styling ===== */
+
+.post-content {
+  @apply text-gray-700 leading-relaxed;
+  font-size: 1rem;
+  line-height: 2;
+}
+
+.post-content h2 {
+  @apply text-xl font-bold text-gray-900 mt-10 mb-4 pb-2 border-b border-gray-100;
+}
+
+.post-content h3 {
+  @apply text-lg font-bold text-gray-800 mt-8 mb-3;
+}
+
+.post-content h4 {
+  @apply text-base font-bold text-gray-800 mt-6 mb-2;
+}
+
+.post-content p {
+  @apply mb-5 leading-8;
+}
+
+.post-content a {
+  @apply text-primary-500 hover:text-primary-600 transition-colors;
+  text-decoration: underline;
+  text-decoration-color: rgba(25, 123, 255, 0.3);
+  text-underline-offset: 3px;
+}
+
+.post-content a:hover {
+  text-decoration-color: rgb(var(--primary-500));
+}
+
+.post-content strong,
+.post-content b {
+  @apply font-bold text-gray-900;
+}
+
+.post-content blockquote {
+  @apply my-6 py-4 px-5 bg-gray-50 rounded-lg text-gray-600 leading-8;
+  border-right: 4px solid rgb(var(--primary-500));
+}
+
+.post-content ul {
+  @apply mb-5 pr-6 list-disc;
+}
+
+.post-content ol {
+  @apply mb-5 pr-6 list-decimal;
+}
+
+.post-content li {
+  @apply mb-2 leading-8;
+}
+
+.post-content img {
+  @apply rounded-xl my-6 max-w-full h-auto mx-auto;
+}
+
+.post-content figure {
+  @apply my-6;
+}
+
+.post-content figcaption {
+  @apply text-center text-sm text-gray-400 mt-2;
+}
+
+.post-content table {
+  @apply w-full border-collapse my-6 text-sm;
+}
+
+.post-content th,
+.post-content td {
+  @apply border border-gray-200 px-4 py-3 text-right;
+}
+
+.post-content th {
+  @apply bg-gray-50 font-bold text-gray-700;
+}
+
+.post-content tr:nth-child(even) {
+  @apply bg-gray-20;
+}
+
+.post-content code {
+  @apply bg-gray-100 text-red-500 px-1.5 py-0.5 rounded text-sm;
+  font-family: 'Courier New', monospace;
+}
+
+.post-content pre {
+  @apply bg-gray-800 text-gray-100 p-4 rounded-lg overflow-x-auto my-6 text-sm leading-6;
+  direction: ltr;
+  text-align: left;
+}
+
+.post-content pre code {
+  @apply bg-transparent text-gray-100 p-0;
+}
+
+.post-content hr {
+  @apply my-8 border-gray-200;
+}
+
+.post-content iframe,
+.post-content video {
+  @apply w-full rounded-xl my-6;
+  aspect-ratio: 16 / 9;
+}
+
+/* ===== Skeleton Loading Animation ===== */
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--gray-100)) 25%,
+    rgb(var(--gray-50)) 50%,
+    rgb(var(--gray-100)) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.8s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* ===== Custom Scrollbar ===== */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(var(--gray-50));
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--gray-300));
+  border-radius: 100px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--gray-400));
+}
+
+/* Thin scrollbar for Firefox */
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--gray-300)) rgb(var(--gray-50));
+}
+
+/* Hide scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ===== Page Loader ===== */
+
+.page-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+}
+
+.page-loader .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgb(var(--gray-200));
+  border-top-color: rgb(var(--primary-500));
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===== Utility Classes ===== */
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(
+      135deg,
+      rgb(var(--primary-500)),
+      rgb(var(--primary-700))
+    );
+  }
+
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .aspect-card {
+    aspect-ratio: 16 / 10;
+  }
+
+  .aspect-banner {
+    aspect-ratio: 21 / 9;
+  }
+}
+
+/* ===== Print Styles ===== */
+
+@media print {
+  header,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    font-size: 12pt;
+    line-height: 1.5;
+    color: #000;
+  }
+
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .print-break {
+    page-break-before: always;
+  }
+}
