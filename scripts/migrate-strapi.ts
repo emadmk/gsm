@@ -32,10 +32,13 @@ const prisma = new PrismaClient()
 // Parse CLI arguments
 const args = process.argv.slice(2)
 const DRY_RUN = args.includes('--dry-run')
+const SKIP_COMMENTS = args.includes('--skip-comments')
 const limitIndex = args.indexOf('--limit')
 const LIMIT = limitIndex !== -1 ? parseInt(args[limitIndex + 1]) : 0
 const offsetIndex = args.indexOf('--offset')
 const OFFSET = offsetIndex !== -1 ? parseInt(args[offsetIndex + 1]) : 0
+const commentLimitIndex = args.indexOf('--comment-limit')
+const COMMENT_LIMIT = commentLimitIndex !== -1 ? parseInt(args[commentLimitIndex + 1]) : 100000
 
 const S3_BASE_URL = process.env.S3_BASE_URL || 'https://s3.gsm.ir/gsmblog-production'
 
@@ -154,26 +157,56 @@ async function migrateCategories(conn: mysql.Connection) {
 }
 
 async function migrateAuthors(conn: mysql.Connection) {
-  console.log('\n=== Migrating Authors (from admin_users) ===')
-  const [rows] = await conn.execute(
+  console.log('\n=== Migrating Authors ===')
+
+  // Try admin_users first
+  const [adminRows] = await conn.execute(
     'SELECT id, firstname, lastname, email, username FROM admin_users WHERE is_active = 1'
   )
-  const users = rows as any[]
-  console.log(`Found ${users.length} active admin users`)
+  console.log(`  Found ${(adminRows as any[]).length} admin_users`)
+
+  // Also try up_users (Strapi frontend users used as publishers)
+  let upUsers: any[] = []
+  try {
+    const [upRows] = await conn.execute(
+      'SELECT id, username, email FROM up_users'
+    )
+    upUsers = upRows as any[]
+    console.log(`  Found ${upUsers.length} up_users`)
+  } catch {
+    console.log('  up_users table not found, skipping')
+  }
+
+  // Merge both - admin_users first, then up_users with offset to avoid ID collision
+  const users = [
+    ...(adminRows as any[]).map((u: any) => ({
+      id: u.id,
+      name: `${u.firstname || ''} ${u.lastname || ''}`.trim() || u.username || 'نویسنده GSM',
+      email: u.email,
+      source: 'admin'
+    })),
+    ...upUsers.map((u: any) => ({
+      id: u.id + 100000, // offset to avoid collision with admin IDs
+      strapiId: u.id,
+      name: u.username || 'نویسنده GSM',
+      email: u.email,
+      source: 'up_user'
+    }))
+  ]
+  console.log(`  Total authors to migrate: ${users.length}`)
 
   if (DRY_RUN) return
 
   let count = 0
   for (const user of users) {
-    const name = `${user.firstname || ''} ${user.lastname || ''}`.trim() || user.username || 'نویسنده GSM'
-    const slug = slugify(name) || `author-${user.id}`
+    const slug = slugify(user.name) || `author-${user.id}`
     try {
       await prisma.author.upsert({
         where: { strapiId: user.id },
-        update: { name, email: user.email },
+        update: { name: user.name, email: user.email },
         create: {
           strapiId: user.id,
-          name,
+          name: user.name,
           slug,
           email: user.email,
           label: 'نویسنده جی اس ام',
@@ -184,10 +217,10 @@ async function migrateAuthors(conn: mysql.Connection) {
       try {
         await prisma.author.upsert({
           where: { strapiId: user.id },
-          update: { name, email: user.email },
+          update: { name: user.name, email: user.email },
           create: {
             strapiId: user.id,
-            name,
+            name: user.name,
             slug: `${slug}-${user.id}`,
             email: user.email,
             label: 'نویسنده جی اس ام',
@@ -248,16 +281,25 @@ async function migratePosts(conn: mysql.Connection) {
       const slug = slugify(title) || `post-${post.id}`
 
       // Get publisher (author) from link table
-      const [publisherRows] = await conn.execute(
-        'SELECT admin_user_id FROM posts_publisher_links WHERE post_id = ?',
-        [post.id]
-      )
       let authorId: number | null = null
-      if ((publisherRows as any[]).length > 0) {
-        const author = await prisma.author.findUnique({
-          where: { strapiId: (publisherRows as any[])[0].admin_user_id },
-        })
-        if (author) authorId = author.id
+      try {
+        const [publisherRows] = await conn.execute(
+          'SELECT * FROM posts_publisher_links WHERE post_id = ? LIMIT 1',
+          [post.id]
+        )
+        if ((publisherRows as any[]).length > 0) {
+          const row = (publisherRows as any[])[0]
+          // Find the column that contains the user ID (could be admin_user_id, user_id, etc.)
+          const userIdValue = row.admin_user_id || row.user_id || row.inv_admin_user_id || Object.values(row).find((v: any) => typeof v === 'number' && v !== post.id)
+          if (userIdValue) {
+            const author = await prisma.author.findUnique({
+              where: { strapiId: userIdValue as number },
+            })
+            if (author) authorId = author.id
+          }
+        }
+      } catch {
+        // publisher link not available for this post
       }
 
       // Get featured image from files_related_morphs
@@ -400,9 +442,9 @@ async function migrateComments(conn: mysql.Connection) {
   let whereClause = 'WHERE content IS NOT NULL'
   if (hasRemoved) whereClause += ' AND (removed IS NULL OR removed != 1)'
 
-  const [rows] = await conn.execute(
-    `SELECT ${selectCols.join(', ')} FROM comments_comment ${whereClause} ORDER BY id ASC`
-  )
+  const commentQuery = `SELECT ${selectCols.join(', ')} FROM comments_comment ${whereClause} ORDER BY id ASC LIMIT ${COMMENT_LIMIT}`
+  console.log(`  Query limit: ${COMMENT_LIMIT}`)
+  const [rows] = await conn.execute(commentQuery)
   const comments = rows as any[]
   console.log(`Found ${comments.length} comments`)
 
@@ -541,7 +583,11 @@ async function main() {
     await migrateCategories(conn)
     await migrateAuthors(conn)
     await migratePosts(conn)
-    await migrateComments(conn)
+    if (!SKIP_COMMENTS) {
+      await migrateComments(conn)
+    } else {
+      console.log('\n=== Skipping Comments (--skip-comments) ===')
+    }
 
     if (!DRY_RUN) {
       await resetSequences()
