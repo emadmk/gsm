@@ -1,0 +1,71 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: gsm_news
+      POSTGRES_USER: gsm_user
+      POSTGRES_PASSWORD: gsm_pass_123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gsm_user -d gsm_news"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://gsm_user:gsm_pass_123@db:5432/gsm_news
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: gsm-secret-key-change-in-production-12345
+      ADMIN_EMAIL: admin@gsm.ir
+      ADMIN_PASSWORD: admin123
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_SITE_NAME: GSM
+      S3_ENDPOINT: https://s3.gsm.ir
+      S3_BUCKET: gsmblog-production
+      S3_BASE_URL: https://s3.gsm.ir/gsmblog-production
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Run once: push schema + create admin
+  setup:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://gsm_user:gsm_pass_123@db:5432/gsm_news
+      ADMIN_EMAIL: admin@gsm.ir
+      ADMIN_PASSWORD: admin123
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "npx prisma db push --skip-generate && 
+             node -e \"
+               const { PrismaClient } = require('@prisma/client');
+               const bcrypt = require('bcryptjs');
+               const prisma = new PrismaClient();
+               async function main() {
+                 const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 12);
+                 await prisma.user.upsert({
+                   where: { email: process.env.ADMIN_EMAIL || 'admin@gsm.ir' },
+                   update: { password: hash },
+                   create: { email: process.env.ADMIN_EMAIL || 'admin@gsm.ir', password: hash, name: 'مدیر سایت', role: 'ADMIN' }
+                 });
+                 console.log('Admin user created');
+               }
+               main().catch(console.error).finally(() => prisma.\$disconnect());
+             \"
+             "
+    profiles:
+      - setup
+
+volumes:
+  pgdata:
