@@ -438,6 +438,7 @@ export function ArticleForm({
                     focusKeyword={focusKeyword || ''}
                     content={content || ''}
                     slug={slug || ''}
+                    excerpt={excerpt || ''}
                   />
                 </div>
 
