@@ -163,6 +163,7 @@ export function ArticleForm({
   const metaTitle = watch('metaTitle')
   const metaDesc = watch('metaDesc')
   const focusKeyword = watch('focusKeyword')
+  const excerpt = watch('excerpt')
 
   const wordCount = countWords(content || '')
   const readingTime = estimateReadingTime(wordCount)
