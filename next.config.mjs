@@ -1,18 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 's3.gsm.ir',
-      },
-      {
-        protocol: 'https',
-        hostname: 's5.gsm.ir',
-      },
-      {
-        protocol: 'https',
-        hostname: '**.gsm.ir',
+        hostname: '**',
       },
       {
         protocol: 'http',

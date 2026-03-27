@@ -153,13 +153,6 @@ export default function Header() {
             <span className="caption hidden sm:inline">جستجو...</span>
           </button>
 
-          {/* Login Button */}
-          <Link
-            href="/admin/login"
-            className="hidden sm:flex items-center gap-1 px-4 py-2 border border-gray-200 rounded-xl text-gray-600 hover:border-primary-500 hover:text-primary-500 transition-all duration-200 subtitle-sm"
-          >
-            ورود
-          </Link>
         </div>
       </header>
 
