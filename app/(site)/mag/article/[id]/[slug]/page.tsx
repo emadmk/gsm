@@ -246,9 +246,9 @@ export default async function ArticlePage({ params }: PageProps) {
 
                 {/* Excerpt */}
                 {article.excerpt && (
-                  <p className="body-lg font-bold text-gray-700 mb-6 leading-relaxed">
-                    {article.excerpt}
-                  </p>
+                  <div className="bg-primary-20 border border-primary-500/10 rounded-lg p-4 mb-6 body-lg text-gray-700 leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: article.excerpt }}
+                  />
                 )}
 
                 {/* Featured Image */}

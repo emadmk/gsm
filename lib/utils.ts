@@ -69,9 +69,9 @@ export function truncate(str: string, length: number): string {
 export function getImageUrl(path: string | null | undefined): string {
   if (!path) return '/images/placeholder.svg'
   if (path.startsWith('http')) return path
-  const baseUrl = process.env.NEXT_PUBLIC_S3_BASE_URL || process.env.S3_BASE_URL || ''
-  if (baseUrl && !path.startsWith('/')) return `${baseUrl}/${path}`
-  return path.startsWith('/') ? path : `/${path}`
+  const baseUrl = process.env.NEXT_PUBLIC_S3_BASE_URL || process.env.S3_BASE_URL || 'https://s3.gsm.ir/gsmblog-production'
+  // Strapi stores paths like /uploads/xxx.jpg - prepend S3 base
+  return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`
 }
 
 export function generateMetaTitle(title: string): string {

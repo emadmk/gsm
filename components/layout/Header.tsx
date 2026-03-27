@@ -67,7 +67,7 @@ export default function Header() {
 
         {/* Logo */}
         <Link href="/" aria-label="بازگشت به صفحه اصلی" className="transition-opacity hover:opacity-80">
-          <img src="/images/logo.png" alt="لوگوی سایت جی‌اس‌ام" className="h-6 lg:h-8 object-contain" />
+          <span className="text-2xl lg:text-3xl font-black tracking-tight"><span className="text-primary-500">GSM</span><span className="text-gray-300 text-sm mr-1 font-normal hidden lg:inline">جی‌اس‌ام</span></span>
         </Link>
 
         {/* Desktop Nav */}
@@ -116,7 +116,7 @@ export default function Header() {
               <button onClick={() => setSearchOpen(false)} className="p-1">
                 <X className="w-5 h-5" />
               </button>
-              <img src="/images/logo.png" alt="GSM" className="h-6" />
+              <span className="text-xl font-black"><span className="text-primary-500">GSM</span></span>
             </div>
             <form action="/search" method="GET" className="relative">
               <input
@@ -154,7 +154,7 @@ export default function Header() {
             `}
           >
             <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <img src="/images/logo.png" alt="GSM" className="h-6" />
+              <span className="text-xl font-black"><span className="text-primary-500">GSM</span></span>
               <button
                 onClick={() => setMenuOpen(false)}
                 className="p-1 hover:bg-gray-50 rounded-lg transition-colors"
