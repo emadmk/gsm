@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Clock, User } from 'lucide-react'
-import { cn, getImageUrl, getPostUrl, formatDateShort, toPersianDigits } from '@/lib/utils'
+import { cn, getImageUrl, getPostUrl, formatDateShort, toPersianDigits, stripHtml } from '@/lib/utils'
 
 export interface ArticleCardArticle {
   id: number
@@ -90,7 +90,7 @@ export default function ArticleCard({ article, className, loading }: ArticleCard
         {/* Excerpt - hidden on mobile */}
         {article.excerpt && (
           <p className="body-sm text-gray-500 line-clamp-1 hidden md:block mt-1">
-            {article.excerpt}
+            {stripHtml(article.excerpt)}
           </p>
         )}
 
