@@ -8,6 +8,7 @@ import {
   generateArticleSchema,
   generateBreadcrumbSchema,
   generateFaqSchema,
+  generateReviewSchema,
   siteConfig,
 } from '@/lib/seo'
 import {
@@ -143,6 +144,20 @@ export default async function ReviewPage({ params }: PageProps) {
     url: articleUrl,
   })
 
+  const reviewSchema = points
+    ? generateReviewSchema({
+        title: article.title,
+        description: article.excerpt || '',
+        image: getImageUrl(article.image),
+        author: article.author?.name || siteConfig.nameEn,
+        datePublished: article.publishedAt?.toISOString() || '',
+        dateModified: article.modifiedAt?.toISOString() || article.publishedAt?.toISOString() || '',
+        url: articleUrl,
+        itemName: article.title,
+        score: points.score,
+      })
+    : null
+
   const breadcrumbSchema = generateBreadcrumbSchema([
     { name: 'خانه', url: siteConfig.url },
     { name: 'بررسی‌ها', url: `${siteConfig.url}/reviews` },
@@ -180,6 +195,12 @@ export default async function ReviewPage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
+      {reviewSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(reviewSchema) }}
+        />
+      )}
       {faqSchema && (
         <script
           type="application/ld+json"

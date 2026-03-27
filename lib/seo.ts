@@ -83,6 +83,12 @@ export function generateOrganizationSchema() {
     url: siteConfig.url,
     logo: `${siteConfig.url}/images/logo.png`,
     sameAs: [siteConfig.instagram, siteConfig.telegram].filter(Boolean),
+    contactPoint: {
+      '@type': 'ContactPoint',
+      email: siteConfig.email,
+      contactType: 'customer service',
+      availableLanguage: 'Persian',
+    },
   }
 }
 
@@ -160,6 +166,58 @@ export function generateArticleSchema(article: {
       '@type': 'WebPage',
       '@id': article.url,
     },
+  }
+}
+
+export function generateReviewSchema(review: {
+  title: string
+  description: string
+  image: string
+  author: string
+  datePublished: string
+  dateModified: string
+  url: string
+  itemName: string
+  score?: number
+}) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Review',
+    headline: review.title,
+    description: review.description,
+    image: review.image,
+    author: {
+      '@type': 'Person',
+      name: review.author,
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: siteConfig.nameEn,
+      logo: {
+        '@type': 'ImageObject',
+        url: `${siteConfig.url}/images/logo.png`,
+      },
+    },
+    datePublished: review.datePublished,
+    dateModified: review.dateModified,
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': review.url,
+    },
+    itemReviewed: {
+      '@type': 'Product',
+      name: review.itemName,
+    },
+    ...(review.score !== undefined && review.score !== null
+      ? {
+          reviewRating: {
+            '@type': 'Rating',
+            ratingValue: review.score,
+            bestRating: 10,
+            worstRating: 0,
+          },
+        }
+      : {}),
   }
 }
 
