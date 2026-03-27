@@ -21,16 +21,50 @@ export interface ArticleCardArticle {
 interface ArticleCardProps {
   article: ArticleCardArticle
   className?: string
+  loading?: boolean
 }
 
-export default function ArticleCard({ article, className }: ArticleCardProps) {
+function ArticleCardSkeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        'flex gap-4 p-4 bg-white rounded-lg shadow-post-box',
+        className
+      )}
+      dir="rtl"
+    >
+      <div className="size-24 md:size-[7.5rem] rounded-lg flex-shrink-0 skeleton" />
+      <div className="flex flex-col flex-1 min-w-0 justify-between">
+        <div className="space-y-2">
+          <div className="h-4 w-full skeleton" />
+          <div className="h-4 w-3/4 skeleton" />
+        </div>
+        <div className="hidden md:block h-3 w-2/3 skeleton mt-2" />
+        <div className="flex items-center gap-3 mt-auto pt-2">
+          <div className="size-6 rounded-full skeleton" />
+          <div className="h-3 w-16 skeleton" />
+          <div className="h-3 w-20 skeleton" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function ArticleCard({ article, className, loading }: ArticleCardProps) {
+  if (loading) {
+    return <ArticleCardSkeleton className={className} />
+  }
+
   const href = getPostUrl(article.id, article.slug, article.postType)
 
   return (
     <Link
       href={href}
       className={cn(
-        'flex gap-4 p-4 bg-white rounded-lg shadow-post-box hover:shadow-md transition-shadow group',
+        `flex gap-4 p-4 bg-white rounded-lg shadow-post-box
+         group cursor-pointer
+         transition-all duration-300 ease-out
+         hover:shadow-md hover:-translate-y-0.5`,
         className
       )}
       dir="rtl"
@@ -41,7 +75,7 @@ export default function ArticleCard({ article, className }: ArticleCardProps) {
           src={getImageUrl(article.image)}
           alt={article.title}
           fill
-          className="object-cover group-hover:scale-105 transition-transform duration-300"
+          className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
           sizes="(max-width: 768px) 96px, 120px"
         />
       </div>
@@ -49,7 +83,7 @@ export default function ArticleCard({ article, className }: ArticleCardProps) {
       {/* Content */}
       <div className="flex flex-col flex-1 min-w-0 justify-between">
         {/* Title */}
-        <h3 className="subtitle-sm md:subtitle-lg text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors">
+        <h3 className="subtitle-sm md:subtitle-lg text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors duration-300">
           {article.title}
         </h3>
 

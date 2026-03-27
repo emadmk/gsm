@@ -14,13 +14,14 @@ import {
   getPostUrl,
   formatDateShort,
   calculateReadingTime,
-  getPostTypeLabel,
   getImageUrl,
   toPersianDigits,
   formatDate,
+  timeAgo,
 } from '@/lib/utils'
 import Breadcrumb from '@/components/common/Breadcrumb'
 import ShareButton from '@/components/common/ShareButton'
+import CommentSection, { Comment } from '@/components/articles/CommentSection'
 import Badge from '@/components/ui/Badge'
 import { Clock, Calendar, Edit3, MessageCircle, User } from 'lucide-react'
 
@@ -64,6 +65,24 @@ async function getRelatedArticles(articleId: number, categoryId: number | null) 
   })
 }
 
+async function getLatestArticles(excludeId: number) {
+  return prisma.article.findMany({
+    where: {
+      status: 'PUBLISHED',
+      id: { not: excludeId },
+    },
+    orderBy: { publishedAt: 'desc' },
+    take: 6,
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      image: true,
+      postType: true,
+    },
+  })
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params
   const article = await getArticle(Number(id))
@@ -85,7 +104,10 @@ export default async function ArticlePage({ params }: PageProps) {
   const article = await getArticle(Number(id))
   if (!article) notFound()
 
-  const relatedArticles = await getRelatedArticles(article.id, article.categoryId)
+  const [relatedArticles, latestArticles] = await Promise.all([
+    getRelatedArticles(article.id, article.categoryId),
+    getLatestArticles(article.id),
+  ])
 
   const articleUrl = `${siteConfig.url}${getPostUrl(article.id, article.slug, article.postType)}`
   const readingTime = article.readingTime || (article.wordCount ? calculateReadingTime(article.wordCount) : 3)
@@ -121,6 +143,24 @@ export default async function ArticlePage({ params }: PageProps) {
   const faqData = article.faq as { question: string; answer: string }[] | null
   const faqSchema = faqData?.length ? generateFaqSchema(faqData) : null
 
+  // Map comments for the CommentSection component
+  const mappedComments: Comment[] = article.comments.map((comment) => ({
+    id: comment.id,
+    author: comment.authorName,
+    email: comment.authorEmail ?? undefined,
+    content: comment.content,
+    isAdmin: comment.isAdmin,
+    createdAt: comment.createdAt,
+    replies: comment.replies.map((reply) => ({
+      id: reply.id,
+      author: reply.authorName,
+      email: reply.authorEmail ?? undefined,
+      content: reply.content,
+      isAdmin: reply.isAdmin,
+      createdAt: reply.createdAt,
+    })),
+  }))
+
   return (
     <>
       <script
@@ -138,267 +178,252 @@ export default async function ArticlePage({ params }: PageProps) {
         />
       )}
 
-      <article className="container mx-auto px-4 pb-12" dir="rtl">
-        <Breadcrumb items={breadcrumbItems} />
+      <div className="bg-gray-50 min-h-screen" dir="rtl">
+        <div className="container xl:max-w-screen-xl mx-auto py-4 lg:px-10">
+          {/* Two Column Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-[3fr_1fr] gap-4 md:gap-6">
+            {/* Main Content (Right) */}
+            <div>
+              <article className="bg-white md:rounded-lg px-4 pb-4 md:p-6 shadow-post-box">
+                {/* Breadcrumb */}
+                <Breadcrumb items={breadcrumbItems} />
 
-        {/* Tags */}
-        {article.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {article.tags.map(({ tag }) => (
-              <Link key={tag.id} href={`/tag/${tag.slug}`}>
-                <Badge variant="primary" size="sm">
-                  {tag.name}
-                </Badge>
-              </Link>
-            ))}
-          </div>
-        )}
-
-        {/* Title */}
-        <h1 className="display-sm md:display-lg text-gray-900 mb-4 leading-relaxed">
-          {article.title}
-        </h1>
-
-        {/* Meta Info */}
-        <div className="flex flex-wrap items-center gap-4 mb-6 text-gray-500 body-sm">
-          {article.author && (
-            <Link
-              href={`/author/${article.author.slug}`}
-              className="flex items-center gap-1.5 hover:text-primary-500 transition-colors"
-            >
-              {article.author.avatar ? (
-                <Image
-                  src={getImageUrl(article.author.avatar)}
-                  alt={article.author.name}
-                  width={28}
-                  height={28}
-                  className="rounded-full object-cover"
-                />
-              ) : (
-                <div className="size-7 rounded-full bg-gray-200 flex-center">
-                  <User className="w-4 h-4 text-gray-400" />
-                </div>
-              )}
-              <span>{article.author.name}</span>
-            </Link>
-          )}
-
-          {article.publishedAt && (
-            <div className="flex items-center gap-1">
-              <Calendar className="w-4 h-4" />
-              <span>{formatDate(article.publishedAt)}</span>
-            </div>
-          )}
-
-          {article.modifiedAt && (
-            <div className="flex items-center gap-1 text-green-500">
-              <Edit3 className="w-4 h-4" />
-              <span>آپدیت: {formatDateShort(article.modifiedAt)}</span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-1">
-            <Clock className="w-4 h-4" />
-            <span>{toPersianDigits(readingTime)} دقیقه مطالعه</span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <MessageCircle className="w-4 h-4" />
-            <span>{toPersianDigits(commentsCount)} دیدگاه</span>
-          </div>
-
-          <ShareButton url={articleUrl} title={article.title} />
-        </div>
-
-        {/* Excerpt */}
-        {article.excerpt && (
-          <p className="body-lg text-gray-600 bg-gray-50 rounded-lg p-4 mb-6 leading-relaxed border-r-4 border-primary-500">
-            {article.excerpt}
-          </p>
-        )}
-
-        {/* Featured Image */}
-        {article.image && (
-          <figure className="mb-8">
-            <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-gray-100">
-              <Image
-                src={getImageUrl(article.image)}
-                alt={article.title}
-                fill
-                className="object-cover"
-                sizes="(max-width: 768px) 100vw, 800px"
-                priority
-              />
-            </div>
-            {article.imageCaption && (
-              <figcaption className="text-center caption text-gray-400 mt-2">
-                {article.imageCaption}
-              </figcaption>
-            )}
-          </figure>
-        )}
-
-        {/* Post Content */}
-        {article.content && (
-          <div
-            className="post-content prose prose-lg max-w-none text-gray-800 leading-loose mb-8"
-            dangerouslySetInnerHTML={{ __html: article.content }}
-          />
-        )}
-
-        {/* FAQ Section */}
-        {faqData && faqData.length > 0 && (
-          <section className="bg-gray-50 rounded-xl p-6 mb-8">
-            <h2 className="h2 text-gray-900 mb-4">سوالات متداول</h2>
-            <div className="space-y-4">
-              {faqData.map((item, index) => (
-                <details
-                  key={index}
-                  className="bg-white rounded-lg p-4 shadow-post-box group"
-                >
-                  <summary className="subtitle-lg text-gray-900 cursor-pointer list-none flex items-center justify-between">
-                    {item.question}
-                    <span className="text-gray-400 group-open:rotate-180 transition-transform">
-                      &#9660;
-                    </span>
-                  </summary>
-                  <p className="body-lg text-gray-600 mt-3 leading-relaxed">{item.answer}</p>
-                </details>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Author Box */}
-        {article.author && (
-          <section className="bg-white rounded-xl shadow-post-box p-6 mb-8">
-            <div className="flex gap-4">
-              <div className="flex-shrink-0">
-                {article.author.avatar ? (
-                  <Image
-                    src={getImageUrl(article.author.avatar)}
-                    alt={article.author.name}
-                    width={80}
-                    height={80}
-                    className="rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="size-20 rounded-full bg-gray-200 flex-center">
-                    <User className="w-8 h-8 text-gray-400" />
+                {/* Tags */}
+                {article.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {article.tags.map(({ tag }) => (
+                      <Link key={tag.id} href={`/tag/${tag.slug}`}>
+                        <span className="inline-block px-3 py-1 rounded-md bg-primary-500/[0.08] text-primary-500 text-sm font-medium">
+                          {tag.name}
+                        </span>
+                      </Link>
+                    ))}
                   </div>
                 )}
-              </div>
-              <div>
-                <Link
-                  href={`/author/${article.author.slug}`}
-                  className="h3 text-gray-900 hover:text-primary-500 transition-colors"
-                >
-                  {article.author.name}
-                </Link>
-                {article.author.label && (
-                  <p className="body-sm text-primary-500 mt-0.5">{article.author.label}</p>
-                )}
-                {article.author.bio && (
-                  <p className="body-sm text-gray-500 mt-2 leading-relaxed">
-                    {article.author.bio}
+
+                {/* Title */}
+                <h1 className="display-sm md:display-lg text-gray-900 mb-4 leading-relaxed">
+                  {article.title}
+                </h1>
+
+                {/* Meta Info */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-6 text-gray-500 body-sm">
+                  {article.author && (
+                    <span>
+                      نوشته{' '}
+                      <Link
+                        href={`/author/${article.author.slug}`}
+                        className="text-primary-500 hover:underline"
+                      >
+                        {article.author.name}
+                      </Link>
+                    </span>
+                  )}
+                  {article.author && <span className="text-gray-300">&#xB7;</span>}
+
+                  {article.publishedAt && (
+                    <span>منتشر شده در {formatDate(article.publishedAt)}</span>
+                  )}
+                  {article.publishedAt && <span className="text-gray-300">&#xB7;</span>}
+
+                  {article.modifiedAt && (
+                    <>
+                      <span>بروزرسانی در {formatDateShort(article.modifiedAt)}</span>
+                      <span className="text-gray-300">&#xB7;</span>
+                    </>
+                  )}
+
+                  <span>مطالعه {toPersianDigits(readingTime)} دقیقه</span>
+
+                  <div className="flex items-center gap-3 mr-auto">
+                    <ShareButton url={articleUrl} title={article.title} />
+                    <Link href="#comments" className="flex items-center gap-1 text-gray-400 hover:text-primary-500 transition-colors">
+                      <MessageCircle className="w-4 h-4" />
+                      <span>{toPersianDigits(commentsCount)}</span>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Excerpt */}
+                {article.excerpt && (
+                  <p className="body-lg font-bold text-gray-700 mb-6 leading-relaxed">
+                    {article.excerpt}
                   </p>
                 )}
-              </div>
-            </div>
-          </section>
-        )}
 
-        {/* Comments Section */}
-        <section className="mb-8" id="comments">
-          <h2 className="h2 text-gray-900 mb-4">
-            دیدگاه‌ها ({toPersianDigits(commentsCount)})
-          </h2>
-
-          {article.comments.length > 0 ? (
-            <div className="space-y-4">
-              {article.comments.map((comment) => (
-                <div key={comment.id} className="bg-white rounded-lg shadow-post-box p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="size-8 rounded-full bg-gray-200 flex-center">
-                      <User className="w-4 h-4 text-gray-400" />
+                {/* Featured Image */}
+                {article.image && (
+                  <figure className="mb-8">
+                    <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-gray-100">
+                      <Image
+                        src={getImageUrl(article.image)}
+                        alt={article.title}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, 800px"
+                        priority
+                      />
                     </div>
-                    <span className="subtitle-sm text-gray-800">{comment.authorName}</span>
-                    {comment.isAdmin && (
-                      <Badge variant="primary" size="sm">مدیر</Badge>
+                    {article.imageCaption && (
+                      <figcaption className="text-center caption text-gray-400 mt-2">
+                        {article.imageCaption}
+                      </figcaption>
                     )}
-                    <span className="caption text-gray-400 mr-auto">
-                      {formatDateShort(comment.createdAt)}
-                    </span>
-                  </div>
-                  <p className="body-sm text-gray-600 leading-relaxed">{comment.content}</p>
+                  </figure>
+                )}
 
-                  {comment.replies.length > 0 && (
-                    <div className="mr-8 mt-3 space-y-3 border-r-2 border-gray-100 pr-4">
-                      {comment.replies.map((reply) => (
-                        <div key={reply.id}>
-                          <div className="flex items-center gap-2 mb-1">
-                            <div className="size-6 rounded-full bg-gray-200 flex-center">
-                              <User className="w-3 h-3 text-gray-400" />
-                            </div>
-                            <span className="subtitle-sm text-gray-800 text-sm">
-                              {reply.authorName}
+                {/* Post Content */}
+                {article.content && (
+                  <div
+                    className="post-content prose prose-lg max-w-none text-gray-800 leading-loose mb-8"
+                    dangerouslySetInnerHTML={{ __html: article.content }}
+                  />
+                )}
+
+                {/* FAQ Section */}
+                {faqData && faqData.length > 0 && (
+                  <section className="bg-gray-50 rounded-xl p-6 mb-8">
+                    <h2 className="h2 text-gray-900 mb-4">سوالات متداول</h2>
+                    <div className="space-y-4">
+                      {faqData.map((item, index) => (
+                        <details
+                          key={index}
+                          className="bg-white rounded-lg p-4 shadow-post-box group"
+                        >
+                          <summary className="subtitle-lg text-gray-900 cursor-pointer list-none flex items-center justify-between">
+                            {item.question}
+                            <span className="text-gray-400 group-open:rotate-180 transition-transform">
+                              &#9660;
                             </span>
-                            {reply.isAdmin && (
-                              <Badge variant="primary" size="sm">مدیر</Badge>
-                            )}
-                            <span className="caption text-gray-400 mr-auto">
-                              {formatDateShort(reply.createdAt)}
-                            </span>
-                          </div>
-                          <p className="body-sm text-gray-600 leading-relaxed">{reply.content}</p>
-                        </div>
+                          </summary>
+                          <p className="body-lg text-gray-600 mt-3 leading-relaxed">{item.answer}</p>
+                        </details>
                       ))}
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="body-sm text-gray-400">هنوز دیدگاهی ثبت نشده است.</p>
-          )}
-        </section>
+                  </section>
+                )}
+              </article>
 
-        {/* Related Articles */}
-        {relatedArticles.length > 0 && (
-          <section>
-            <h2 className="h2 text-gray-900 mb-4">مطالب مرتبط</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {relatedArticles.map((post) => (
-                <Link
-                  key={post.id}
-                  href={getPostUrl(post.id, post.slug, post.postType)}
-                  className="bg-white rounded-lg shadow-post-box overflow-hidden group hover:shadow-md transition-shadow"
-                >
-                  <div className="relative w-full aspect-video bg-gray-100">
-                    <Image
-                      src={getImageUrl(post.image)}
-                      alt={post.title}
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-300"
-                      sizes="(max-width: 640px) 100vw, 25vw"
-                    />
+              {/* Author Box */}
+              {article.author && (
+                <section className="bg-white md:rounded-lg shadow-post-box p-6 mt-4 md:mt-6">
+                  <div className="flex gap-4">
+                    <div className="flex-shrink-0">
+                      {article.author.avatar ? (
+                        <Image
+                          src={getImageUrl(article.author.avatar)}
+                          alt={article.author.name}
+                          width={80}
+                          height={80}
+                          className="rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="size-20 rounded-full bg-gray-200 flex items-center justify-center">
+                          <User className="w-8 h-8 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <Link
+                        href={`/author/${article.author.slug}`}
+                        className="h3 text-gray-900 hover:text-primary-500 transition-colors"
+                      >
+                        {article.author.name}
+                      </Link>
+                      {article.author.label && (
+                        <p className="body-sm text-primary-500 mt-0.5">{article.author.label}</p>
+                      )}
+                      {article.author.bio && (
+                        <p className="body-sm text-gray-500 mt-2 leading-relaxed">
+                          {article.author.bio}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="p-3">
-                    <h3 className="subtitle-sm text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors">
-                      {post.title}
-                    </h3>
-                    {post.publishedAt && (
-                      <span className="caption text-gray-400 mt-1 block">
-                        {formatDateShort(post.publishedAt)}
-                      </span>
-                    )}
+                </section>
+              )}
+
+              {/* Comments Section */}
+              <div className="bg-white md:rounded-lg shadow-post-box p-4 md:p-6 mt-4 md:mt-6" id="comments">
+                <CommentSection
+                  postId={article.id}
+                  comments={mappedComments}
+                  totalComments={commentsCount}
+                />
+              </div>
+
+              {/* Related Articles */}
+              {relatedArticles.length > 0 && (
+                <section className="mt-4 md:mt-6">
+                  <h2 className="h2 text-gray-900 mb-4">مطالب مرتبط</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {relatedArticles.map((post) => (
+                      <Link
+                        key={post.id}
+                        href={getPostUrl(post.id, post.slug, post.postType)}
+                        className="bg-white rounded-lg shadow-post-box overflow-hidden group hover:shadow-md transition-shadow"
+                      >
+                        <div className="relative w-full aspect-video bg-gray-100">
+                          <Image
+                            src={getImageUrl(post.image)}
+                            alt={post.title}
+                            fill
+                            className="object-cover group-hover:scale-105 transition-transform duration-300"
+                            sizes="(max-width: 640px) 100vw, 25vw"
+                          />
+                        </div>
+                        <div className="p-3">
+                          <h3 className="subtitle-sm text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors">
+                            {post.title}
+                          </h3>
+                          {post.publishedAt && (
+                            <span className="caption text-gray-400 mt-1 block">
+                              {formatDateShort(post.publishedAt)}
+                            </span>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
                   </div>
-                </Link>
-              ))}
+                </section>
+              )}
             </div>
-          </section>
-        )}
-      </article>
+
+            {/* Sidebar (Left) */}
+            <aside className="hidden md:block">
+              <div className="sticky top-4">
+                <div className="bg-white rounded-lg shadow-post-box p-4">
+                  <h3 className="h4 text-gray-900 mb-4 pb-3 border-b border-gray-100">
+                    جدیدترین مطالب
+                  </h3>
+                  <div className="space-y-4">
+                    {latestArticles.map((post) => (
+                      <Link
+                        key={post.id}
+                        href={getPostUrl(post.id, post.slug, post.postType)}
+                        className="flex gap-3 group"
+                      >
+                        <div className="relative size-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+                          <Image
+                            src={getImageUrl(post.image)}
+                            alt={post.title}
+                            fill
+                            className="object-cover group-hover:scale-105 transition-transform duration-300"
+                            sizes="80px"
+                          />
+                        </div>
+                        <h4 className="subtitle-sm text-gray-800 line-clamp-2 group-hover:text-primary-500 transition-colors leading-relaxed">
+                          {post.title}
+                        </h4>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
     </>
   )
 }

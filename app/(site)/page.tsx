@@ -12,6 +12,7 @@ import {
   toPersianDigits,
 } from '@/lib/utils'
 import { Clock, User, Eye, RefreshCw } from 'lucide-react'
+import ScrollAnimations from './ScrollAnimations'
 
 export async function generateMetadata(): Promise<Metadata> {
   return generateSeoMeta({
@@ -83,14 +84,26 @@ export default async function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
       />
 
+      {/* Client component for scroll-based animations */}
+      <ScrollAnimations />
+
       <div className="container mx-auto px-4" dir="rtl">
         {/* Stories Slider */}
         {stories.length > 0 && (
-          <section className="py-4 overflow-x-auto">
-            <div className="flex gap-4 pb-2">
+          <section className="py-4 fade-section">
+            <div className="flex gap-4 pb-2 overflow-x-auto no-scrollbar">
               {stories.map((story) => (
-                <div key={story.id} className="flex flex-col items-center flex-shrink-0">
-                  <div className="w-16 h-16 md:w-20 md:h-20 rounded-full ring-2 ring-primary-500 ring-offset-2 overflow-hidden bg-gray-100">
+                <div
+                  key={story.id}
+                  className="flex flex-col items-center flex-shrink-0 group cursor-pointer"
+                >
+                  <div className="
+                    w-16 h-16 md:w-20 md:h-20 rounded-full
+                    ring-2 ring-primary-500 ring-offset-2
+                    overflow-hidden bg-gray-100
+                    transition-transform duration-300
+                    group-hover:scale-105 group-hover:ring-primary-600
+                  ">
                     <Image
                       src={getImageUrl(story.cover)}
                       alt={story.title}
@@ -99,7 +112,7 @@ export default async function HomePage() {
                       className="object-cover w-full h-full"
                     />
                   </div>
-                  <span className="caption text-gray-700 mt-1.5 max-w-[5rem] text-center truncate">
+                  <span className="caption text-gray-700 mt-1.5 max-w-[5rem] text-center truncate group-hover:text-primary-500 transition-colors">
                     {story.title}
                   </span>
                 </div>
@@ -110,16 +123,17 @@ export default async function HomePage() {
 
         {/* Updated Posts Ticker */}
         {updatedPosts.length > 0 && (
-          <section className="bg-gray-50 rounded-lg p-3 mb-6 flex items-center gap-3 overflow-hidden">
+          <section className="bg-gray-50 rounded-lg p-3 mb-6 flex items-center gap-3 overflow-hidden fade-section">
             <div className="flex items-center gap-1.5 flex-shrink-0 text-primary-500">
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-4 h-4 animate-spin-slow" />
               <span className="subtitle-sm whitespace-nowrap">مطالب آپدیت شده:</span>
             </div>
-            <div className="overflow-hidden relative">
-              <div className="flex gap-6 animate-marquee whitespace-nowrap">
-                {updatedPosts.map((post) => (
+            <div className="overflow-hidden relative flex-1">
+              <div className="flex gap-6 marquee-track">
+                {/* Duplicate items for seamless loop */}
+                {[...updatedPosts, ...updatedPosts].map((post, idx) => (
                   <Link
-                    key={post.id}
+                    key={`${post.id}-${idx}`}
                     href={getPostUrl(post.id, post.slug, post.postType)}
                     className="body-sm text-gray-600 hover:text-primary-500 transition-colors whitespace-nowrap"
                   >
@@ -133,7 +147,7 @@ export default async function HomePage() {
 
         {/* Latest Posts Grid */}
         {latestPosts.length > 0 && (
-          <section className="mb-8">
+          <section className="mb-8 fade-section">
             <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-4">
               {/* First Post - Large */}
               <Link
@@ -144,12 +158,12 @@ export default async function HomePage() {
                   src={getImageUrl(latestPosts[0].image)}
                   alt={latestPosts[0].title}
                   fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                   sizes="(max-width: 768px) 100vw, 50vw"
                   priority
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-                <div className="absolute bottom-0 right-0 left-0 p-5">
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent transition-opacity duration-300 group-hover:from-black/90" />
+                <div className="absolute bottom-0 right-0 left-0 p-5 transition-transform duration-300 group-hover:translate-y-[-4px]">
                   {latestPosts[0].category && (
                     <span className="inline-block px-3 py-1 bg-primary-500 text-white caption rounded-full mb-2">
                       {latestPosts[0].category.name}
@@ -180,11 +194,11 @@ export default async function HomePage() {
                     src={getImageUrl(post.image)}
                     alt={post.title}
                     fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                     sizes="(max-width: 768px) 100vw, 25vw"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                  <div className="absolute bottom-0 right-0 left-0 p-3">
+                  <div className="absolute bottom-0 right-0 left-0 p-3 transition-transform duration-300 group-hover:translate-y-[-2px]">
                     {post.category && (
                       <span className="inline-block px-2 py-0.5 bg-primary-500 text-white text-xs rounded-full mb-1.5">
                         {post.category.name}
@@ -200,10 +214,10 @@ export default async function HomePage() {
 
         {/* Reviews Section */}
         {reviews.length > 0 && (
-          <section className="mb-8">
+          <section className="mb-8 fade-section">
             <div className="flex items-center justify-between mb-4">
               <h2 className="h2 text-gray-900">بررسی‌های تخصصی</h2>
-              <Link href="/reviews" className="body-sm text-primary-500 hover:underline">
+              <Link href="/reviews" className="body-sm text-primary-500 hover:underline transition-all hover:gap-2 flex items-center gap-1">
                 مشاهده همه
               </Link>
             </div>
@@ -217,11 +231,11 @@ export default async function HomePage() {
                   src={getImageUrl(reviews[0].image)}
                   alt={reviews[0].title}
                   fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                   sizes="(max-width: 768px) 100vw, 33vw"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                <div className="absolute bottom-0 right-0 left-0 p-4">
+                <div className="absolute bottom-0 right-0 left-0 p-4 transition-transform duration-300 group-hover:translate-y-[-2px]">
                   <span className="inline-block px-2 py-0.5 bg-green-500 text-white text-xs rounded-full mb-2">
                     بررسی
                   </span>
@@ -235,19 +249,24 @@ export default async function HomePage() {
                   <Link
                     key={review.id}
                     href={getPostUrl(review.id, review.slug, review.postType)}
-                    className="flex gap-3 bg-white rounded-lg shadow-post-box p-3 hover:shadow-md transition-shadow group"
+                    className="
+                      flex gap-3 bg-white rounded-lg shadow-post-box p-3
+                      transition-all duration-300 ease-out
+                      hover:shadow-md hover:-translate-y-0.5
+                      group
+                    "
                   >
                     <div className="relative w-24 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
                       <Image
                         src={getImageUrl(review.image)}
                         alt={review.title}
                         fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
                         sizes="96px"
                       />
                     </div>
                     <div className="flex flex-col justify-between min-w-0">
-                      <h3 className="subtitle-sm text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors">
+                      <h3 className="subtitle-sm text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors duration-300">
                         {review.title}
                       </h3>
                       {review.publishedAt && (
@@ -269,7 +288,7 @@ export default async function HomePage() {
           <div className="lg:col-span-3 space-y-8">
             {/* News Section */}
             {news.length > 0 && (
-              <section>
+              <section className="fade-section">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="h2 text-gray-900">اخبار</h2>
                   <Link href="/news" className="body-sm text-primary-500 hover:underline">
@@ -281,19 +300,24 @@ export default async function HomePage() {
                     <Link
                       key={item.id}
                       href={getPostUrl(item.id, item.slug, item.postType)}
-                      className="flex gap-4 bg-white rounded-lg shadow-post-box p-3 hover:shadow-md transition-shadow group"
+                      className="
+                        flex gap-4 bg-white rounded-lg shadow-post-box p-3
+                        transition-all duration-300 ease-out
+                        hover:shadow-md hover:-translate-y-0.5
+                        group
+                      "
                     >
                       <div className="relative w-28 h-24 md:w-32 md:h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
                         <Image
                           src={getImageUrl(item.image)}
                           alt={item.title}
                           fill
-                          className="object-cover group-hover:scale-105 transition-transform duration-300"
+                          className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
                           sizes="128px"
                         />
                       </div>
                       <div className="flex flex-col flex-1 min-w-0 justify-between">
-                        <h3 className="subtitle-sm md:subtitle-lg text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors">
+                        <h3 className="subtitle-sm md:subtitle-lg text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors duration-300">
                           {item.title}
                         </h3>
                         <div className="flex items-center gap-3 mt-auto pt-2">
@@ -336,7 +360,7 @@ export default async function HomePage() {
 
             {/* Articles Section */}
             {articles.length > 0 && (
-              <section>
+              <section className="fade-section">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="h2 text-gray-900">مقالات</h2>
                   <Link href="/articles" className="body-sm text-primary-500 hover:underline">
@@ -348,19 +372,24 @@ export default async function HomePage() {
                     <Link
                       key={item.id}
                       href={getPostUrl(item.id, item.slug, item.postType)}
-                      className="flex gap-4 bg-white rounded-lg shadow-post-box p-3 hover:shadow-md transition-shadow group"
+                      className="
+                        flex gap-4 bg-white rounded-lg shadow-post-box p-3
+                        transition-all duration-300 ease-out
+                        hover:shadow-md hover:-translate-y-0.5
+                        group
+                      "
                     >
                       <div className="relative w-28 h-24 md:w-32 md:h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
                         <Image
                           src={getImageUrl(item.image)}
                           alt={item.title}
                           fill
-                          className="object-cover group-hover:scale-105 transition-transform duration-300"
+                          className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
                           sizes="128px"
                         />
                       </div>
                       <div className="flex flex-col flex-1 min-w-0 justify-between">
-                        <h3 className="subtitle-sm md:subtitle-lg text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors">
+                        <h3 className="subtitle-sm md:subtitle-lg text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors duration-300">
                           {item.title}
                         </h3>
                         <div className="flex items-center gap-3 mt-auto pt-2">
@@ -403,8 +432,8 @@ export default async function HomePage() {
           </div>
 
           {/* Right Sidebar (2fr) */}
-          <aside className="lg:col-span-2">
-            <div className="bg-blue-50 rounded-xl p-4 sticky top-4">
+          <aside className="lg:col-span-2 fade-section">
+            <div className="bg-blue-50 rounded-xl p-4 sticky top-20">
               <h2 className="h3 text-gray-900 mb-4 flex items-center gap-2">
                 <Eye className="w-5 h-5 text-primary-500" />
                 پربازدیدترین مطالب
@@ -414,13 +443,22 @@ export default async function HomePage() {
                   <Link
                     key={post.id}
                     href={getPostUrl(post.id, post.slug, post.postType)}
-                    className="flex gap-3 group"
+                    className="
+                      flex gap-3 group p-2 -mx-2 rounded-lg
+                      transition-all duration-300
+                      hover:bg-white/60
+                    "
                   >
-                    <span className="flex-shrink-0 w-7 h-7 rounded-full bg-primary-500 text-white flex-center subtitle-sm">
+                    <span className="
+                      flex-shrink-0 w-7 h-7 rounded-full bg-primary-500
+                      text-white flex-center subtitle-sm
+                      transition-transform duration-300
+                      group-hover:scale-110
+                    ">
                       {toPersianDigits(index + 1)}
                     </span>
                     <div className="min-w-0">
-                      <h3 className="subtitle-sm text-gray-800 line-clamp-2 group-hover:text-primary-500 transition-colors">
+                      <h3 className="subtitle-sm text-gray-800 line-clamp-2 group-hover:text-primary-500 transition-colors duration-300">
                         {post.title}
                       </h3>
                       <div className="flex items-center gap-2 mt-1">
