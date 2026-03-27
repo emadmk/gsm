@@ -18,6 +18,7 @@ import {
   toPersianDigits,
   formatDate,
   timeAgo,
+  cleanHtmlContent,
 } from '@/lib/utils'
 import Breadcrumb from '@/components/common/Breadcrumb'
 import ShareButton from '@/components/common/ShareButton'
@@ -276,7 +277,7 @@ export default async function ArticlePage({ params }: PageProps) {
                 {article.content && (
                   <div
                     className="post-content prose prose-lg max-w-none text-gray-800 leading-loose mb-8"
-                    dangerouslySetInnerHTML={{ __html: article.content }}
+                    dangerouslySetInnerHTML={{ __html: cleanHtmlContent(article.content) }}
                   />
                 )}
 

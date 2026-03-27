@@ -36,7 +36,7 @@ const navItems = [
   { href: '/admin/stories', label: 'استوری‌ها', icon: CircleDot },
   { href: '/admin/ads', label: 'تبلیغات', icon: Megaphone },
   { href: '/admin/media', label: 'رسانه', icon: ImageIcon },
-  { href: '/admin/messages', label: 'پیام‌ها', icon: Mail },
+  { href: '/admin/contact', label: 'پیام‌ها', icon: Mail },
   { href: '/admin/settings', label: 'تنظیمات', icon: Settings },
 ]
 
@@ -52,7 +52,7 @@ const breadcrumbMap: Record<string, string> = {
   '/admin/stories': 'استوری‌ها',
   '/admin/ads': 'تبلیغات',
   '/admin/media': 'رسانه',
-  '/admin/messages': 'پیام‌ها',
+  '/admin/contact': 'پیام‌ها',
   '/admin/settings': 'تنظیمات',
 }
 

@@ -116,3 +116,20 @@ export function toPersianDigits(num: number | string): string {
   const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹']
   return num.toString().replace(/[0-9]/g, (d) => persianDigits[parseInt(d)])
 }
+
+export function cleanHtmlContent(html: string | null | undefined): string {
+  if (!html) return ''
+  let clean = html
+  // Remove Strapi's structured data attributes
+  clean = clean.replace(/data-[a-z-]+="[^"]*"/gi, '')
+  // Remove class attributes with thread/internal classes
+  clean = clean.replace(/class="[^"]*thread[^"]*"/gi, '')
+  clean = clean.replace(/class="[^"]*ck-[^"]*"/gi, '')
+  // Fix S3 image URLs
+  clean = clean.replace(/src="\/uploads\//g, 'src="https://s3.gsm.ir/gsmblog-production/uploads/')
+  // Remove empty style tags
+  clean = clean.replace(/style=""/g, '')
+  // Remove zero-width spaces and null bytes
+  clean = clean.replace(/[\u200B-\u200D\uFEFF\x00]/g, '')
+  return clean
+}
