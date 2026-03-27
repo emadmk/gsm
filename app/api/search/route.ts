@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     }
 
     const searchTerm = q.trim()
+    const limit = parseInt(searchParams.get('limit') || '20')
 
     const where: Record<string, unknown> = {
       status: 'PUBLISHED',
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
         category: { select: { id: true, name: true, slug: true } },
       },
       orderBy: { publishedAt: 'desc' },
-      take: 20,
+      take: Math.min(limit, 50),
     })
 
     // Add simple highlight info
@@ -67,6 +68,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       query: searchTerm,
       total: results.length,
+      articles: results,
       results,
     })
   } catch (error) {
