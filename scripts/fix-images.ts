@@ -46,7 +46,8 @@ async function main() {
   let updated = 0
   let batch: { id: number; url: string }[] = []
 
-  for (const [postId, url] of imageMap) {
+  const entries = Array.from(imageMap.entries())
+  for (const [postId, url] of entries) {
     batch.push({ id: postId, url })
     if (batch.length >= 500) {
       await Promise.all(
