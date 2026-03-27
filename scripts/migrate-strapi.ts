@@ -308,7 +308,7 @@ async function migratePosts(conn: mysql.Connection) {
         `SELECT f.url FROM files f
          JOIN files_related_morphs frm ON f.id = frm.file_id
          WHERE frm.related_id = ? AND frm.related_type = 'api::post.post'
-         AND frm.field = 'image'
+         AND frm.field = 'main_image'
          ORDER BY frm.\`order\` ASC
          LIMIT 1`,
         [post.id]
