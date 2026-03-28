@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import {
   Newspaper,
@@ -18,6 +19,7 @@ import {
   Users,
   Settings,
 } from 'lucide-react'
+import { hasRequiredRole } from '@/lib/admin-security'
 
 interface Stats {
   articles: {
@@ -71,6 +73,7 @@ function getPersianDate(): string {
 }
 
 export default function AdminDashboard() {
+  const { data: session } = useSession()
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -180,6 +183,7 @@ export default function AdminDashboard() {
     { label: 'بررسی‌ها', count: stats.articles.reviews, color: 'bg-purple-500', textColor: 'text-purple-600', percent: total > 0 ? Math.round((stats.articles.reviews / total) * 100) : 0 },
     { label: 'استوری‌ها', count: stats.articles.stories, color: 'bg-pink-500', textColor: 'text-pink-600', percent: total > 0 ? Math.round((stats.articles.stories / total) * 100) : 0 },
   ]
+  const canManageSettings = hasRequiredRole(session?.user?.role, 'ADMIN')
 
   return (
     <div className="space-y-6">
@@ -295,15 +299,17 @@ export default function AdminDashboard() {
               </div>
               <span className="text-sm font-semibold text-amber-700">مدیریت نظرات</span>
             </Link>
-            <Link
-              href="/admin/settings"
-              className="flex flex-col items-center gap-3 p-5 rounded-xl bg-gradient-to-b from-slate-50 to-slate-50/30 border-2 border-slate-100 hover:border-slate-300 hover:shadow-md hover:shadow-slate-100/50 transition-all duration-300 group"
-            >
-              <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-slate-500/25">
-                <Settings className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-sm font-semibold text-slate-700">تنظیمات</span>
-            </Link>
+            {canManageSettings && (
+              <Link
+                href="/admin/settings"
+                className="flex flex-col items-center gap-3 p-5 rounded-xl bg-gradient-to-b from-slate-50 to-slate-50/30 border-2 border-slate-100 hover:border-slate-300 hover:shadow-md hover:shadow-slate-100/50 transition-all duration-300 group"
+              >
+                <div className="w-12 h-12 bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-slate-500/25">
+                  <Settings className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-sm font-semibold text-slate-700">تنظیمات</span>
+              </Link>
+            )}
             <Link
               href="/admin/categories"
               className="flex flex-col items-center gap-3 p-5 rounded-xl bg-gradient-to-b from-purple-50 to-purple-50/30 border-2 border-purple-100 hover:border-purple-300 hover:shadow-md hover:shadow-purple-100/50 transition-all duration-300 group"

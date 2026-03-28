@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import prisma from '@/lib/db'
-import { authOptions } from '@/lib/auth'
+import { requireAuthorizedSession } from '@/lib/api-auth'
 
 const createStorySchema = z.object({
   title: z.string().min(1, 'عنوان الزامی است'),
@@ -12,8 +11,13 @@ const createStorySchema = z.object({
   isActive: z.boolean().optional(),
 })
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuthorizedSession(request, { requiredRole: 'EDITOR' })
+    if (auth.response) {
+      return auth.response
+    }
+
     const stories = await prisma.story.findMany({
       where: { isActive: true },
       orderBy: { order: 'asc' },
@@ -31,9 +35,12 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuthorizedSession(request, {
+      requiredRole: 'EDITOR',
+      enforceSameOrigin: true,
+    })
+    if (auth.response) {
+      return auth.response
     }
 
     const body = await request.json()

@@ -18,6 +18,7 @@ model User {
   image         String?
   role          UserRole  @default(ADMIN)
   accounts      Account[]
+  importRuns    ImportRun[]
   sessions      Session[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -298,4 +299,46 @@ model PageView {
   @@unique([articleId, viewDate])
   @@index([articleId])
   @@index([viewDate])
+}
+
+// ==================== Imports ====================
+
+model ImportRun {
+  id              String           @id @default(cuid())
+  sourceType      ImportSourceType
+  status          ImportRunStatus  @default(PENDING)
+  sourceHost      String
+  sourcePort      Int              @default(3306)
+  sourceDatabase  String
+  sourceUser      String
+  statusMessage   String?
+  currentStep     String?
+  progressCurrent Int?
+  progressTotal   Int?
+  logText         String?          @db.Text
+  error           String?          @db.Text
+  options         Json?
+  stats           Json?
+  createdById     String?
+  createdBy       User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([status])
+  @@index([sourceType])
+  @@index([createdAt])
+  @@index([createdById])
+}
+
+enum ImportRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ImportSourceType {
+  STRAPI
 }

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import prisma from '@/lib/db'
-import { authOptions } from '@/lib/auth'
+import { requireAuthorizedSession } from '@/lib/api-auth'
 
 const createBrandSchema = z.object({
   name: z.string().min(1, 'نام برند الزامی است'),
@@ -13,8 +12,13 @@ const createBrandSchema = z.object({
   priority: z.number().int().default(0),
 })
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuthorizedSession(request, { requiredRole: 'EDITOR' })
+    if (auth.response) {
+      return auth.response
+    }
+
     const brands = await prisma.brand.findMany({
       orderBy: { priority: 'desc' },
     })
@@ -31,9 +35,12 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuthorizedSession(request, {
+      requiredRole: 'EDITOR',
+      enforceSameOrigin: true,
+    })
+    if (auth.response) {
+      return auth.response
     }
 
     const body = await request.json()

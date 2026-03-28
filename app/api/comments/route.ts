@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import prisma from '@/lib/db'
+import { requireAuthorizedSession } from '@/lib/api-auth'
 
 const createCommentSchema = z.object({
   authorName: z.string().min(1, 'نام الزامی است'),
@@ -12,6 +13,11 @@ const createCommentSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuthorizedSession(request, { requiredRole: 'EDITOR' })
+    if (auth.response) {
+      return auth.response
+    }
+
     const { searchParams } = new URL(request.url)
     const articleId = searchParams.get('articleId')
     const isApproved = searchParams.get('isApproved')

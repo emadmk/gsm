@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import prisma from '@/lib/db'
-import { authOptions } from '@/lib/auth'
+import { requireAuthorizedSession } from '@/lib/api-auth'
 
 const createArticleSchema = z.object({
   title: z.string().min(1, 'عنوان الزامی است'),
@@ -32,6 +31,11 @@ const createArticleSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuthorizedSession(request, { requiredRole: 'EDITOR' })
+    if (auth.response) {
+      return auth.response
+    }
+
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')))
@@ -94,9 +98,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuthorizedSession(request, {
+      requiredRole: 'EDITOR',
+      enforceSameOrigin: true,
+    })
+    if (auth.response) {
+      return auth.response
     }
 
     const body = await request.json()

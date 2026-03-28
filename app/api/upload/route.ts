@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
-import { authOptions } from '@/lib/auth'
+import { requireAuthorizedSession } from '@/lib/api-auth'
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads')
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
@@ -10,9 +9,12 @@ const MAX_SIZE = 10 * 1024 * 1024 // 10MB
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuthorizedSession(request, {
+      requiredRole: 'EDITOR',
+      enforceSameOrigin: true,
+    })
+    if (auth.response) {
+      return auth.response
     }
 
     const formData = await request.formData()

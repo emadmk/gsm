@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import prisma from '@/lib/db'
-import { authOptions } from '@/lib/auth'
+import { requireAuthorizedSession } from '@/lib/api-auth'
 
 const createTagSchema = z.object({
   name: z.string().min(1, 'نام تگ الزامی است'),
   slug: z.string().min(1, 'اسلاگ الزامی است'),
 })
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuthorizedSession(request, { requiredRole: 'EDITOR' })
+    if (auth.response) {
+      return auth.response
+    }
+
     const tags = await prisma.tag.findMany({
       include: {
         _count: { select: { articles: true } },
@@ -30,9 +34,12 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuthorizedSession(request, {
+      requiredRole: 'EDITOR',
+      enforceSameOrigin: true,
+    })
+    if (auth.response) {
+      return auth.response
     }
 
     const body = await request.json()

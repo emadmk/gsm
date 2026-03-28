@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
+import { hasRequiredRole, isAdminOnlyApiPath, isAdminOnlyPagePath } from '@/lib/admin-security'
 
 // Rate limiting store (in production, use Redis)
 const rateLimit = new Map<string, { count: number; timestamp: number }>()
@@ -114,21 +115,32 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
     const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
 
-    if (!token) {
+    if (!token || !hasRequiredRole(token.role as string | undefined, 'EDITOR')) {
       const loginUrl = new URL('/admin/login', request.url)
       loginUrl.searchParams.set('callbackUrl', pathname)
       return NextResponse.redirect(loginUrl)
     }
+
+    if (isAdminOnlyPagePath(pathname) && !hasRequiredRole(token.role as string | undefined, 'ADMIN')) {
+      return NextResponse.redirect(new URL('/admin', request.url))
+    }
   }
 
-  // Admin API protection
-  if (pathname.startsWith('/api/admin') && !pathname.includes('/auth/')) {
+  // Sensitive admin API protection
+  if ((pathname.startsWith('/api/admin') || isAdminOnlyApiPath(pathname)) && !pathname.includes('/auth/')) {
     const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
 
     if (!token) {
       return new NextResponse(
         JSON.stringify({ success: false, message: 'Unauthorized' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (isAdminOnlyApiPath(pathname) && !hasRequiredRole(token.role as string | undefined, 'ADMIN')) {
+      return new NextResponse(
+        JSON.stringify({ success: false, message: 'Forbidden' }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } }
       )
     }
   }

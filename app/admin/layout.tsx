@@ -10,6 +10,7 @@ import {
   FolderTree,
   Tags,
   Users,
+  Database,
   MessageSquare,
   CircleDot,
   Megaphone,
@@ -24,6 +25,7 @@ import {
   ChevronDown,
   Bell,
 } from 'lucide-react'
+import { hasRequiredRole, type AdminRole } from '@/lib/admin-security'
 
 const navItems = [
   { href: '/admin', label: 'داشبورد', icon: LayoutDashboard },
@@ -35,9 +37,10 @@ const navItems = [
   { href: '/admin/comments', label: 'نظرات', icon: MessageSquare },
   { href: '/admin/stories', label: 'استوری‌ها', icon: CircleDot },
   { href: '/admin/ads', label: 'تبلیغات', icon: Megaphone },
-  { href: '/admin/media', label: 'رسانه', icon: ImageIcon },
+  { href: '/admin/media', label: 'رسانه', icon: ImageIcon, requiredRole: 'ADMIN' as AdminRole },
   { href: '/admin/contact', label: 'پیام‌ها', icon: Mail },
-  { href: '/admin/settings', label: 'تنظیمات', icon: Settings },
+  { href: '/admin/import/strapi', label: 'درون‌ریزی', icon: Database, requiredRole: 'ADMIN' as AdminRole },
+  { href: '/admin/settings', label: 'تنظیمات', icon: Settings, requiredRole: 'ADMIN' as AdminRole },
 ]
 
 const breadcrumbMap: Record<string, string> = {
@@ -53,6 +56,7 @@ const breadcrumbMap: Record<string, string> = {
   '/admin/ads': 'تبلیغات',
   '/admin/media': 'رسانه',
   '/admin/contact': 'پیام‌ها',
+  '/admin/import/strapi': 'درون‌ریزی Strapi',
   '/admin/settings': 'تنظیمات',
 }
 
@@ -155,6 +159,10 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const breadcrumbs = getBreadcrumbs(pathname)
   const userName = session?.user?.name || session?.user?.email || 'کاربر'
   const userInitial = userName.charAt(0).toUpperCase()
+  const userRole = session?.user?.role
+  const visibleNavItems = navItems.filter(
+    (item) => !item.requiredRole || hasRequiredRole(userRole, item.requiredRole)
+  )
 
   return (
     <div className="flex min-h-screen bg-gray-50" dir="rtl">
@@ -203,7 +211,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
           <div className="px-3 mb-3">
             <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">منوی اصلی</span>
           </div>
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = isActive(item.href)
             return (
               <Link
