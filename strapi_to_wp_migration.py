@@ -70,7 +70,7 @@ def extract_relative_upload_path(image_url: str) -> str:
     Convert an absolute image URL into a WordPress-friendly relative file path.
 
     Examples:
-    - https://s3.gsm.ir/gsm-blog-production/Repository/images/news/old/0/Jbl-logo71331.jpg
+    - https://storage.example.com/example-bucket/Repository/images/news/old/0/Jbl-logo71331.jpg
       -> Repository/images/news/old/0/Jbl-logo71331.jpg
 
     - https://cdn.example.com/wp-content/uploads/2026/03/pic.jpg

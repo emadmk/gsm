@@ -1,0 +1,8 @@
+node_modules
+.next
+.git
+*.md
+GSMTheme.zip
+strapi_to_wp_migration.py
+.env
+.env.local

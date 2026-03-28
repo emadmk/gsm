@@ -1,0 +1,23 @@
+import type { MetadataRoute } from 'next'
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: 'جی‌اس‌ام - اولین رسانه تخصصی موبایل ایران',
+    short_name: 'GSM',
+    description: 'بررسی تخصصی، اخبار و راهنمای خرید موبایل',
+    start_url: '/',
+    display: 'standalone',
+    background_color: '#ffffff',
+    theme_color: '#197BFF',
+    orientation: 'portrait-primary',
+    icons: [
+      {
+        src: '/images/logo.png',
+        sizes: 'any',
+        type: 'image/png',
+      },
+    ],
+    lang: 'fa',
+    dir: 'rtl',
+  }
+}

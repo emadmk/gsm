@@ -1,0 +1,72 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gsm_news}
+      POSTGRES_USER: ${POSTGRES_USER:-gsm_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gsm_user} -d ${POSTGRES_DB:-gsm_news}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gsm_user}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-gsm_news}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET in .env}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      NEXT_PUBLIC_SITE_NAME: ${NEXT_PUBLIC_SITE_NAME:-GSM}
+      S3_ENDPOINT: ${S3_ENDPOINT:-https://example-s3.local}
+      S3_BUCKET: ${S3_BUCKET:-example-bucket}
+      S3_BASE_URL: ${S3_BASE_URL:-https://example-s3.local/example-bucket}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Run once: push schema + create admin
+  setup:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gsm_user}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-gsm_news}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "npx prisma db push --skip-generate && 
+             node -e \"
+               const { PrismaClient } = require('@prisma/client');
+               const bcrypt = require('bcryptjs');
+               const prisma = new PrismaClient();
+               async function main() {
+                 if (!process.env.ADMIN_PASSWORD) {
+                   throw new Error('ADMIN_PASSWORD is required');
+                 }
+                 const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 12);
+                 await prisma.user.upsert({
+                   where: { email: process.env.ADMIN_EMAIL || 'admin@example.com' },
+                   update: { password: hash },
+                   create: { email: process.env.ADMIN_EMAIL || 'admin@example.com', password: hash, name: 'مدیر سایت', role: 'ADMIN' }
+                 });
+                 console.log('Admin user created');
+               }
+               main().catch(console.error).finally(() => prisma.$$disconnect());
+             \"
+             "
+    profiles:
+      - setup
+
+volumes:
+  pgdata:
