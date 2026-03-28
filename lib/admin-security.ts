@@ -1,7 +1,7 @@
 export type AdminRole = 'ADMIN' | 'EDITOR'
 
 const adminOnlyPagePrefixes = ['/admin/import', '/admin/media', '/admin/settings']
-const adminOnlyApiPrefixes = ['/api/imports', '/api/settings']
+const adminOnlyApiPrefixes = ['/api/imports', '/api/media', '/api/settings']
 
 function normalizeOrigin(value: string) {
   return value.replace(/\/$/, '').toLowerCase()

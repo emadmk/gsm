@@ -10,6 +10,7 @@ import {
   GripVertical,
 } from 'lucide-react'
 import MediaUpload from '@/components/admin/MediaUpload'
+import { getImageUrl } from '@/lib/utils'
 
 interface StoryItem {
   type: 'image' | 'video'
@@ -360,7 +361,7 @@ export default function StoriesPage() {
                     {story.cover ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={story.cover}
+                        src={getImageUrl(story.cover)}
                         alt={story.title}
                         className="w-12 h-12 rounded-lg object-cover"
                       />

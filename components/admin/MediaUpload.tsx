@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react'
+import { getImageUrl } from '@/lib/utils'
 
 interface MediaUploadProps {
   value?: string
@@ -96,7 +97,7 @@ export default function MediaUpload({
           <div className="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden border border-gray-300">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={value}
+              src={getImageUrl(value)}
               alt="پیش‌نمایش"
               className="w-full h-full object-cover"
             />

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Save, Loader2, Eye, EyeOff, Wifi } from 'lucide-react'
+import { Save, Loader2, Eye, EyeOff, Wifi, CheckCircle2, CloudUpload, ShieldCheck } from 'lucide-react'
 
 interface MediaSettings {
   s3_provider: string
@@ -14,6 +14,14 @@ interface MediaSettings {
   s3_path_style: string
 }
 
+interface TestConnectionResult {
+  bucket: string
+  endpoint: string
+  publicBaseUrl: string
+  pathStyle: boolean
+  message: string
+}
+
 const defaultSettings: MediaSettings = {
   s3_provider: 'MinIO',
   s3_endpoint: '',
@@ -22,7 +30,7 @@ const defaultSettings: MediaSettings = {
   s3_region: '',
   s3_bucket: '',
   s3_cdn_url: '',
-  s3_path_style: 'false',
+  s3_path_style: 'true',
 }
 
 export default function MediaSettingsPage() {
@@ -31,6 +39,7 @@ export default function MediaSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
   const [showSecret, setShowSecret] = useState(false)
+  const [testResult, setTestResult] = useState<TestConnectionResult | null>(null)
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
 
@@ -86,41 +95,61 @@ export default function MediaSettingsPage() {
     setTesting(true)
     setSuccess('')
     setError('')
+    setTestResult(null)
 
     try {
-      // Save settings first, then test
-      const res = await fetch('/api/settings', {
+      const res = await fetch('/api/media/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       })
 
-      if (res.ok) {
-        // Attempt a test upload request
-        const testRes = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ test: true }),
-        })
+      const data = await res.json()
 
-        if (testRes.ok) {
-          setSuccess('اتصال با موفقیت برقرار شد')
-        } else {
-          setError('خطا در اتصال به سرور ذخیره‌سازی. لطفا تنظیمات را بررسی کنید')
-        }
-      } else {
-        setError('خطا در ذخیره تنظیمات')
+      if (!res.ok) {
+        throw new Error(data.error || 'خطا در اتصال به سرور ذخیره‌سازی')
       }
-    } catch {
-      setError('خطا در تست اتصال')
+
+      setTestResult(data)
+      setSuccess(data.message || 'اتصال با موفقیت برقرار شد')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'خطا در تست اتصال')
     } finally {
       setTesting(false)
-      setTimeout(() => {
-        setSuccess('')
-        setError('')
-      }, 4000)
     }
   }
+
+  const buildBaseUrlPreview = () => {
+    const endpoint = settings.s3_endpoint.trim().replace(/\/+$/, '')
+    const bucket = settings.s3_bucket.trim()
+    const cdnUrl = settings.s3_cdn_url.trim().replace(/\/+$/, '')
+
+    if (cdnUrl) {
+      return cdnUrl
+    }
+
+    if (!endpoint || !bucket) {
+      return ''
+    }
+
+    try {
+      const endpointUrl = new URL(endpoint)
+      const endpointPath = endpointUrl.pathname.replace(/\/+$/, '')
+
+      if (settings.s3_path_style === 'true' || endpointPath) {
+        return `${endpointUrl.origin}${endpointPath}/${bucket}`
+      }
+
+      return `${endpointUrl.protocol}//${bucket}.${endpointUrl.host}`
+    } catch {
+      return ''
+    }
+  }
+
+  const previewBaseUrl = buildBaseUrlPreview()
+  const previewObjectUrl = previewBaseUrl
+    ? `${previewBaseUrl}/uploads/2026/03/example-1711637400000-a1b2c3d4.jpg`
+    : ''
 
   if (loading) {
     return (
@@ -135,7 +164,44 @@ export default function MediaSettingsPage() {
       <h1 className="text-2xl font-bold text-gray-800">مدیریت رسانه</h1>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-bold text-gray-800 mb-6">تنظیمات ذخیره‌سازی ابری</h2>
+        <div className="flex flex-col gap-4 mb-6">
+          <div>
+            <h2 className="text-lg font-bold text-gray-800">تنظیمات ذخیره‌سازی ابری</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              تصاویر پنل ادمین بعد از ذخیره در این فضا آپلود می‌شوند و آدرس نهایی آن‌ها از همین تنظیمات ساخته می‌شود.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+              <div className="flex items-center gap-2 text-blue-700 font-medium text-sm">
+                <CloudUpload className="w-4 h-4" />
+                مسیر نهایی آپلود
+              </div>
+              <p className="text-xs text-blue-900/80 mt-2 break-all" dir="ltr">
+                {previewObjectUrl || 'بعد از تکمیل Endpoint و Bucket اینجا نمایش داده می‌شود'}
+              </p>
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-4">
+              <div className="flex items-center gap-2 text-emerald-700 font-medium text-sm">
+                <ShieldCheck className="w-4 h-4" />
+                جلوگیری از بازنویسی
+              </div>
+              <p className="text-xs text-emerald-900/80 mt-2">
+                هر فایل با نام یکتا ذخیره می‌شود تا تصویر قبلی روی S3 جایگزین نشود.
+              </p>
+            </div>
+            <div className="rounded-xl border border-amber-100 bg-amber-50/70 p-4">
+              <div className="flex items-center gap-2 text-amber-700 font-medium text-sm">
+                <Wifi className="w-4 h-4" />
+                تست اتصال
+              </div>
+              <p className="text-xs text-amber-900/80 mt-2">
+                دکمه تست، اتصال bucket و دسترسی نوشتن را بررسی می‌کند.
+              </p>
+            </div>
+          </div>
+        </div>
 
         {success && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">
@@ -255,6 +321,9 @@ export default function MediaSettingsPage() {
               placeholder="https://cdn.example.com"
               dir="ltr"
             />
+            <p className="text-xs text-gray-400 mt-1" dir="ltr">
+              مثال: https://s3.gsm.ir/gsmblog-production
+            </p>
           </div>
 
           {/* Path Style */}
@@ -273,6 +342,29 @@ export default function MediaSettingsPage() {
             <span className="text-sm font-medium text-gray-700">Use Path-Style Endpoint</span>
           </div>
         </div>
+
+        {testResult && (
+          <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex items-center gap-2 text-emerald-700 font-medium">
+              <CheckCircle2 className="w-5 h-5" />
+              آخرین تست با موفقیت انجام شد
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 text-sm">
+              <div>
+                <div className="text-gray-500">Bucket</div>
+                <div className="font-medium text-gray-800" dir="ltr">{testResult.bucket}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Endpoint</div>
+                <div className="font-medium text-gray-800 break-all" dir="ltr">{testResult.endpoint}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Base URL</div>
+                <div className="font-medium text-gray-800 break-all" dir="ltr">{testResult.publicBaseUrl || '---'}</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex items-center gap-3 mt-6 pt-6 border-t border-gray-200">

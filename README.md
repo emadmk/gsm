@@ -25,6 +25,11 @@
 - [راه‌اندازی با Docker](docs/setup-docker.md)
 - [راه‌اندازی روی سرور با `npm run dev`](docs/setup-server-dev.md)
 
+## English Setup Guides
+
+- [Docker Setup](docs/setup-docker.en.md)
+- [Server Setup With `npm run dev`](docs/setup-server-dev.en.md)
+
 ## مستندات محصول
 
 - [نقشه سایت عمومی برای Confluence](docs/confluence-site-map.md)

@@ -28,6 +28,7 @@ test('admin-only page detection matches expected sections', () => {
 test('admin-only api detection matches expected endpoints', () => {
   assert.equal(isAdminOnlyApiPath('/api/imports/strapi'), true)
   assert.equal(isAdminOnlyApiPath('/api/imports/strapi/test'), true)
+  assert.equal(isAdminOnlyApiPath('/api/media/test'), true)
   assert.equal(isAdminOnlyApiPath('/api/settings'), true)
   assert.equal(isAdminOnlyApiPath('/api/articles'), false)
 })

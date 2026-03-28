@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
 import { requireAuthorizedSession } from '@/lib/api-auth'
+import {
+  MediaStorageConfigError,
+  uploadFileToMediaStorage,
+} from '@/lib/media-storage'
 
-const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads')
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
 const MAX_SIZE = 10 * 1024 * 1024 // 10MB
 
@@ -41,34 +42,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create upload directory if it doesn't exist
-    const now = new Date()
-    const yearMonth = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`
-    const uploadPath = path.join(UPLOAD_DIR, yearMonth)
-    await mkdir(uploadPath, { recursive: true })
-
-    // Generate unique filename
-    const ext = path.extname(file.name) || '.jpg'
-    const baseName = path
-      .basename(file.name, ext)
-      .replace(/[^a-zA-Z0-9\u0600-\u06FF_-]/g, '_')
-      .substring(0, 100)
-    const uniqueName = `${baseName}-${Date.now()}${ext}`
-    const filePath = path.join(uploadPath, uniqueName)
-
-    // Write file
-    const bytes = await file.arrayBuffer()
-    await writeFile(filePath, Buffer.from(bytes))
-
-    const publicPath = `/uploads/${yearMonth}/${uniqueName}`
+    const uploadedFile = await uploadFileToMediaStorage(file)
 
     return NextResponse.json({
-      url: publicPath,
-      name: uniqueName,
+      url: uploadedFile.url,
+      key: uploadedFile.key,
+      name: uploadedFile.name,
       size: file.size,
       type: file.type,
     })
   } catch (error) {
+    if (error instanceof MediaStorageConfigError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      )
+    }
+
     console.error('Error uploading file:', error)
     return NextResponse.json(
       { error: 'خطا در آپلود فایل' },
