@@ -86,6 +86,9 @@ interface RunImportParams {
 type MysqlRow = Record<string, any>
 
 const DEFAULT_COMMENT_LIMIT = 100000
+const POST_BATCH_SIZE = 100
+const COMMENT_BATCH_SIZE = 500
+const COMMENT_THREAD_BATCH_SIZE = 1000
 
 function slugify(text: string): string {
   return text
@@ -155,6 +158,35 @@ async function emit(
   await onProgress?.(event)
 }
 
+function buildLimitOffsetClause(limit?: number, offset?: number) {
+  const clauses: string[] = []
+
+  if (limit && limit > 0) {
+    clauses.push(`LIMIT ${limit}`)
+  }
+
+  if (offset && offset > 0) {
+    clauses.push(`OFFSET ${offset}`)
+  }
+
+  return clauses.join(' ')
+}
+
+function getSelectedTotal(
+  totalAvailable: number,
+  limit?: number,
+  offset?: number
+) {
+  const normalizedOffset = offset && offset > 0 ? offset : 0
+  const remaining = Math.max(totalAvailable - normalizedOffset, 0)
+
+  if (limit && limit > 0) {
+    return Math.min(limit, remaining)
+  }
+
+  return remaining
+}
+
 async function createConnection(config: StrapiConnectionConfig) {
   return mysql.createConnection({
     host: config.host,
@@ -198,6 +230,69 @@ async function fetchSourceStats(conn: mysql.Connection): Promise<StrapiSourceSta
     posts: Number((postRows as MysqlRow[])[0]?.c || 0),
     tags: Number((tagRows as MysqlRow[])[0]?.c || 0),
     comments,
+  }
+}
+
+async function countPostsForImport(
+  conn: mysql.Connection,
+  options: ReturnType<typeof normalizeOptions>
+) {
+  const totalPublishedPosts = await safeCount(
+    conn,
+    'SELECT COUNT(*) as c FROM posts WHERE published_at IS NOT NULL'
+  )
+
+  return getSelectedTotal(totalPublishedPosts, options.limit, options.offset)
+}
+
+async function buildCommentImportContext(
+  conn: mysql.Connection,
+  options: ReturnType<typeof normalizeOptions>
+) {
+  const [columns] = await conn.execute('SHOW COLUMNS FROM comments_comment')
+  const columnNames = (columns as MysqlRow[]).map((column) => column.Field)
+
+  const hasRemoved = columnNames.includes('removed')
+  const hasBlocked = columnNames.includes('blocked')
+  const hasApproval = columnNames.includes('approval_status')
+  const hasIsAdmin = columnNames.includes('is_admin_comment')
+  const authorNameColumn = columnNames.includes('author_name')
+    ? 'author_name'
+    : columnNames.includes('authorName')
+      ? 'authorName'
+      : null
+  const authorEmailColumn = columnNames.includes('author_email')
+    ? 'author_email'
+    : columnNames.includes('authorEmail')
+      ? 'authorEmail'
+      : null
+
+  const selectColumns = ['id', 'content', 'created_at', 'updated_at', 'related']
+  if (hasBlocked) selectColumns.push('blocked')
+  if (hasApproval) selectColumns.push('approval_status')
+  if (hasIsAdmin) selectColumns.push('is_admin_comment')
+  if (authorNameColumn) selectColumns.push(authorNameColumn)
+  if (authorEmailColumn) selectColumns.push(authorEmailColumn)
+
+  let whereClause = 'WHERE content IS NOT NULL'
+  if (hasRemoved) {
+    whereClause += ' AND (removed IS NULL OR removed != 1)'
+  }
+
+  const totalComments = await safeCount(
+    conn,
+    `SELECT COUNT(*) as c FROM comments_comment ${whereClause}`
+  )
+
+  return {
+    hasBlocked,
+    hasApproval,
+    hasIsAdmin,
+    authorNameColumn,
+    authorEmailColumn,
+    selectColumns,
+    whereClause,
+    totalToProcess: Math.min(totalComments, options.commentLimit ?? totalComments),
   }
 }
 
@@ -515,38 +610,43 @@ async function migratePosts(params: {
     message: 'در حال انتقال مطالب',
   })
 
-  let query = `
-    SELECT p.id, p.titre, p.main_text, p.summary, p.type,
-           p.reading_time, p.is_hot, p.source,
-           p.published_at, p.created_at, p.updated_at,
-           COALESCE(p.views, 0) as views,
-           p.related_brand, p.related_product, p.comment
-    FROM posts p
-    WHERE p.published_at IS NOT NULL
-    ORDER BY p.id ASC
-  `
-
-  if (options.limit) query += ` LIMIT ${options.limit}`
-  if (options.offset) query += ` OFFSET ${options.offset}`
-
-  const [rows] = await conn.execute(query)
-  const posts = rows as MysqlRow[]
+  const totalPosts = await countPostsForImport(conn, options)
 
   if (options.dryRun) {
     const types: Record<string, number> = {}
+    let processed = 0
 
-    for (const post of posts) {
-      const key = post.type || 'unknown'
-      types[key] = (types[key] || 0) + 1
+    while (processed < totalPosts) {
+      const batchSize = Math.min(POST_BATCH_SIZE, totalPosts - processed)
+      const query = `
+        SELECT p.id, p.type
+        FROM posts p
+        WHERE p.published_at IS NOT NULL
+        ORDER BY p.id ASC
+        ${buildLimitOffsetClause(batchSize, (options.offset || 0) + processed)}
+      `
+      const [rows] = await conn.execute(query)
+      const posts = rows as MysqlRow[]
+
+      if (posts.length === 0) {
+        break
+      }
+
+      for (const post of posts) {
+        const key = post.type || 'unknown'
+        types[key] = (types[key] || 0) + 1
+      }
+
+      processed += posts.length
     }
 
     summary.source.typeDistribution = types
 
     await emit(onProgress, {
       step: 'posts',
-      message: `Dry run: ${posts.length} مطلب آماده انتقال است`,
-      progressCurrent: posts.length,
-      progressTotal: posts.length,
+      message: `Dry run: ${processed} مطلب آماده انتقال است`,
+      progressCurrent: processed,
+      progressTotal: totalPosts,
       summary: {
         source: summary.source,
       },
@@ -556,167 +656,191 @@ async function migratePosts(params: {
   }
 
   let migrated = 0
+  let processed = 0
 
-  for (const post of posts) {
-    try {
-      const postType = resolvePostType(post.type)
-      const title = post.titre || `پست ${post.id}`
-      const slug = slugify(title) || `post-${post.id}`
+  while (processed < totalPosts) {
+    const batchSize = Math.min(POST_BATCH_SIZE, totalPosts - processed)
+    const query = `
+      SELECT p.id, p.titre, p.main_text, p.summary, p.type,
+             p.reading_time, p.is_hot, p.source,
+             p.published_at, p.created_at, p.updated_at,
+             COALESCE(p.views, 0) as views,
+             p.related_brand, p.related_product, p.comment
+      FROM posts p
+      WHERE p.published_at IS NOT NULL
+      ORDER BY p.id ASC
+      ${buildLimitOffsetClause(batchSize, (options.offset || 0) + processed)}
+    `
+    const [rows] = await conn.execute(query)
+    const posts = rows as MysqlRow[]
 
-      let authorId: number | null = null
+    if (posts.length === 0) {
+      break
+    }
 
+    for (const post of posts) {
       try {
-        const [publisherRows] = await conn.execute(
-          'SELECT * FROM posts_publisher_links WHERE post_id = ? LIMIT 1',
+        const postType = resolvePostType(post.type)
+        const title = post.titre || `پست ${post.id}`
+        const slug = slugify(title) || `post-${post.id}`
+
+        let authorId: number | null = null
+
+        try {
+          const [publisherRows] = await conn.execute(
+            'SELECT * FROM posts_publisher_links WHERE post_id = ? LIMIT 1',
+            [post.id]
+          )
+
+          const publisherRow = (publisherRows as MysqlRow[])[0]
+          if (publisherRow) {
+            const sourceAuthorId =
+              publisherRow.admin_user_id ||
+              publisherRow.user_id ||
+              publisherRow.inv_admin_user_id
+
+            if (sourceAuthorId) {
+              const author = await prisma.author.findUnique({
+                where: { strapiId: sourceAuthorId },
+              })
+
+              if (author) {
+                authorId = author.id
+              }
+            }
+          }
+        } catch {
+          // Ignore missing publisher links.
+        }
+
+        const [imageRows] = await conn.execute(
+          `SELECT f.url FROM files f
+           JOIN files_related_morphs frm ON f.id = frm.file_id
+           WHERE frm.related_id = ? AND frm.related_type = 'api::post.post'
+           AND frm.field = 'main_image'
+           ORDER BY frm.\`order\` ASC
+           LIMIT 1`,
           [post.id]
         )
 
-        const publisherRow = (publisherRows as MysqlRow[])[0]
-        if (publisherRow) {
-          const sourceAuthorId =
-            publisherRow.admin_user_id ||
-            publisherRow.user_id ||
-            publisherRow.inv_admin_user_id
+        let image: string | null = null
+        if ((imageRows as MysqlRow[]).length > 0) {
+          const url = (imageRows as MysqlRow[])[0].url
+          image = url?.startsWith('http') ? url : `${s3BaseUrl}${url}`
+        }
 
-          if (sourceAuthorId) {
-            const author = await prisma.author.findUnique({
-              where: { strapiId: sourceAuthorId },
-            })
+        const [brandRows] = await conn.execute(
+          'SELECT brand_id FROM posts_brands_links WHERE post_id = ?',
+          [post.id]
+        )
 
-            if (author) {
-              authorId = author.id
-            }
+        const brandIds = (brandRows as MysqlRow[]).map((row) => row.brand_id)
+
+        let readingTime: number | null = null
+        if (post.reading_time) {
+          const parsed = parseInt(post.reading_time.toString().replace(/[^\d]/g, ''), 10)
+          if (!Number.isNaN(parsed)) {
+            readingTime = parsed
           }
         }
-      } catch {
-        // Ignore missing publisher links.
-      }
 
-      const [imageRows] = await conn.execute(
-        `SELECT f.url FROM files f
-         JOIN files_related_morphs frm ON f.id = frm.file_id
-         WHERE frm.related_id = ? AND frm.related_type = 'api::post.post'
-         AND frm.field = 'main_image'
-         ORDER BY frm.\`order\` ASC
-         LIMIT 1`,
-        [post.id]
-      )
-
-      let image: string | null = null
-      if ((imageRows as MysqlRow[]).length > 0) {
-        const url = (imageRows as MysqlRow[])[0].url
-        image = url?.startsWith('http') ? url : `${s3BaseUrl}${url}`
-      }
-
-      const [brandRows] = await conn.execute(
-        'SELECT brand_id FROM posts_brands_links WHERE post_id = ?',
-        [post.id]
-      )
-
-      const brandIds = (brandRows as MysqlRow[]).map((row) => row.brand_id)
-
-      let readingTime: number | null = null
-      if (post.reading_time) {
-        const parsed = parseInt(post.reading_time.toString().replace(/[^\d]/g, ''), 10)
-        if (!Number.isNaN(parsed)) {
-          readingTime = parsed
-        }
-      }
-
-      await prisma.article.upsert({
-        where: { strapiId: post.id },
-        update: {
-          title,
-          slug,
-          excerpt: post.summary,
-          content: post.main_text,
-          image,
-          postType: postType as any,
-          status: 'PUBLISHED',
-          publishedAt: post.published_at,
-          modifiedAt: post.updated_at,
-          authorId,
-          viewCount: parseInt(String(post.views || 0), 10) || 0,
-          readingTime,
-          featured: post.is_hot === 1,
-          brands:
-            brandIds.length > 0 ? (brandIds as Prisma.InputJsonValue) : Prisma.JsonNull,
-        } as any,
-        create: {
-          id: post.id,
-          strapiId: post.id,
-          title,
-          slug,
-          excerpt: post.summary,
-          content: post.main_text,
-          image,
-          postType: postType as any,
-          status: 'PUBLISHED',
-          publishedAt: post.published_at,
-          modifiedAt: post.updated_at,
-          authorId,
-          viewCount: parseInt(String(post.views || 0), 10) || 0,
-          readingTime,
-          featured: post.is_hot === 1,
-          brands:
-            brandIds.length > 0 ? (brandIds as Prisma.InputJsonValue) : Prisma.JsonNull,
-          createdAt: post.created_at,
-        } as any,
-      })
-
-      const [tagRows] = await conn.execute(
-        'SELECT tag_id FROM posts_tags_links WHERE post_id = ?',
-        [post.id]
-      )
-
-      for (const tagRow of tagRows as MysqlRow[]) {
-        const tag = await prisma.tag.findUnique({
-          where: { strapiId: tagRow.tag_id },
+        await prisma.article.upsert({
+          where: { strapiId: post.id },
+          update: {
+            title,
+            slug,
+            excerpt: post.summary,
+            content: post.main_text,
+            image,
+            postType: postType as any,
+            status: 'PUBLISHED',
+            publishedAt: post.published_at,
+            modifiedAt: post.updated_at,
+            authorId,
+            viewCount: parseInt(String(post.views || 0), 10) || 0,
+            readingTime,
+            featured: post.is_hot === 1,
+            brands:
+              brandIds.length > 0 ? (brandIds as Prisma.InputJsonValue) : Prisma.JsonNull,
+          } as any,
+          create: {
+            id: post.id,
+            strapiId: post.id,
+            title,
+            slug,
+            excerpt: post.summary,
+            content: post.main_text,
+            image,
+            postType: postType as any,
+            status: 'PUBLISHED',
+            publishedAt: post.published_at,
+            modifiedAt: post.updated_at,
+            authorId,
+            viewCount: parseInt(String(post.views || 0), 10) || 0,
+            readingTime,
+            featured: post.is_hot === 1,
+            brands:
+              brandIds.length > 0 ? (brandIds as Prisma.InputJsonValue) : Prisma.JsonNull,
+            createdAt: post.created_at,
+          } as any,
         })
 
-        if (!tag) {
-          continue
-        }
+        const [tagRows] = await conn.execute(
+          'SELECT tag_id FROM posts_tags_links WHERE post_id = ?',
+          [post.id]
+        )
 
-        try {
-          await prisma.articleTag.upsert({
-            where: {
-              articleId_tagId: {
+        for (const tagRow of tagRows as MysqlRow[]) {
+          const tag = await prisma.tag.findUnique({
+            where: { strapiId: tagRow.tag_id },
+          })
+
+          if (!tag) {
+            continue
+          }
+
+          try {
+            await prisma.articleTag.upsert({
+              where: {
+                articleId_tagId: {
+                  articleId: post.id,
+                  tagId: tag.id,
+                },
+              },
+              update: {},
+              create: {
                 articleId: post.id,
                 tagId: tag.id,
               },
-            },
-            update: {},
-            create: {
-              articleId: post.id,
-              tagId: tag.id,
-            },
-          })
-          summary.imported.articleTags++
-        } catch {
-          // Duplicate link, skip.
+            })
+            summary.imported.articleTags++
+          } catch {
+            // Duplicate link, skip.
+          }
         }
-      }
 
-      migrated++
-      summary.imported.posts = migrated
-
-      if (migrated % 250 === 0 || migrated === posts.length) {
-        await emit(onProgress, {
-          step: 'posts',
-          message: `${migrated} از ${posts.length} مطلب منتقل شد`,
-          progressCurrent: migrated,
-          progressTotal: posts.length,
-          summary: {
-            imported: summary.imported,
-            errors: summary.errors,
-          },
-        })
+        migrated++
+        summary.imported.posts = migrated
+      } catch {
+        summary.errors.posts++
+      } finally {
+        processed++
       }
-    } catch {
-      summary.errors.posts++
     }
+
+    await emit(onProgress, {
+      step: 'posts',
+      message: `${processed} از ${totalPosts} مطلب بررسی شد (${migrated} منتقل شد)`,
+      progressCurrent: processed,
+      progressTotal: totalPosts,
+      summary: {
+        imported: summary.imported,
+        errors: summary.errors,
+      },
+    })
   }
+
+  summary.imported.posts = migrated
 }
 
 async function migrateComments(params: {
@@ -742,147 +866,155 @@ async function migrateComments(params: {
     return
   }
 
-  const [columns] = await conn.execute('SHOW COLUMNS FROM comments_comment')
-  const columnNames = (columns as MysqlRow[]).map((column) => column.Field)
-
-  const hasRemoved = columnNames.includes('removed')
-  const hasBlocked = columnNames.includes('blocked')
-  const hasApproval = columnNames.includes('approval_status')
-  const hasIsAdmin = columnNames.includes('is_admin_comment')
-  const authorNameColumn = columnNames.includes('author_name')
-    ? 'author_name'
-    : columnNames.includes('authorName')
-      ? 'authorName'
-      : null
-  const authorEmailColumn = columnNames.includes('author_email')
-    ? 'author_email'
-    : columnNames.includes('authorEmail')
-      ? 'authorEmail'
-      : null
-
-  const selectColumns = ['id', 'content', 'created_at', 'updated_at', 'related']
-  if (hasBlocked) selectColumns.push('blocked')
-  if (hasApproval) selectColumns.push('approval_status')
-  if (hasIsAdmin) selectColumns.push('is_admin_comment')
-  if (authorNameColumn) selectColumns.push(authorNameColumn)
-  if (authorEmailColumn) selectColumns.push(authorEmailColumn)
-
-  let whereClause = 'WHERE content IS NOT NULL'
-  if (hasRemoved) {
-    whereClause += ' AND (removed IS NULL OR removed != 1)'
-  }
-
-  const [rows] = await conn.execute(
-    `SELECT ${selectColumns.join(', ')}
-     FROM comments_comment
-     ${whereClause}
-     ORDER BY id ASC
-     LIMIT ${options.commentLimit}`
-  )
-
-  const comments = rows as MysqlRow[]
+  const {
+    hasBlocked,
+    hasApproval,
+    hasIsAdmin,
+    authorNameColumn,
+    authorEmailColumn,
+    selectColumns,
+    whereClause,
+    totalToProcess,
+  } = await buildCommentImportContext(conn, options)
 
   if (options.dryRun) {
     return
   }
 
   let migrated = 0
+  let processed = 0
 
-  for (const comment of comments) {
-    let postId: number | null = null
+  while (processed < totalToProcess) {
+    const batchSize = Math.min(COMMENT_BATCH_SIZE, totalToProcess - processed)
+    const [rows] = await conn.execute(
+      `SELECT ${selectColumns.join(', ')}
+       FROM comments_comment
+       ${whereClause}
+       ORDER BY id ASC
+       LIMIT ${batchSize}
+       OFFSET ${processed}`
+    )
 
-    if (comment.related) {
-      const match = String(comment.related).match(/(\d+)$/)
-      if (match) {
-        postId = Number(match[1])
+    const comments = rows as MysqlRow[]
+
+    if (comments.length === 0) {
+      break
+    }
+
+    for (const comment of comments) {
+      let postId: number | null = null
+
+      if (comment.related) {
+        const match = String(comment.related).match(/(\d+)$/)
+        if (match) {
+          postId = Number(match[1])
+        }
       }
-    }
 
-    if (!postId) {
-      summary.skipped.commentsWithoutArticle++
-      continue
-    }
+      if (!postId) {
+        summary.skipped.commentsWithoutArticle++
+        processed++
+        continue
+      }
 
-    const article = await prisma.article.findFirst({
-      where: { id: postId },
-    })
-
-    if (!article) {
-      summary.skipped.commentsWithoutArticle++
-      continue
-    }
-
-    const authorName =
-      (authorNameColumn ? comment[authorNameColumn] : null) || 'ناشناس'
-    const authorEmail = authorEmailColumn ? comment[authorEmailColumn] : null
-
-    try {
-      await prisma.comment.upsert({
-        where: { strapiId: comment.id },
-        update: {
-          content: comment.content,
-          authorName,
-          authorEmail,
-          isApproved: hasApproval ? comment.approval_status === 'APPROVED' : !comment.blocked,
-          isAdmin: hasIsAdmin ? comment.is_admin_comment === 1 : false,
-        },
-        create: {
-          strapiId: comment.id,
-          articleId: article.id,
-          content: comment.content,
-          authorName,
-          authorEmail,
-          isApproved: hasApproval ? comment.approval_status === 'APPROVED' : !comment.blocked,
-          isAdmin: hasIsAdmin ? comment.is_admin_comment === 1 : false,
-          createdAt: comment.created_at || new Date(),
-        },
+      const article = await prisma.article.findFirst({
+        where: { id: postId },
       })
 
-      migrated++
-      summary.imported.comments = migrated
+      if (!article) {
+        summary.skipped.commentsWithoutArticle++
+        processed++
+        continue
+      }
 
-      if (migrated % 1000 === 0 || migrated === comments.length) {
-        await emit(onProgress, {
-          step: 'comments',
-          message: `${migrated} از ${comments.length} نظر منتقل شد`,
-          progressCurrent: migrated,
-          progressTotal: comments.length,
-          summary: {
-            imported: summary.imported,
-            skipped: summary.skipped,
-            errors: summary.errors,
+      const authorName =
+        (authorNameColumn ? comment[authorNameColumn] : null) || 'ناشناس'
+      const authorEmail = authorEmailColumn ? comment[authorEmailColumn] : null
+
+      try {
+        await prisma.comment.upsert({
+          where: { strapiId: comment.id },
+          update: {
+            content: comment.content,
+            authorName,
+            authorEmail,
+            isApproved: hasApproval ? comment.approval_status === 'APPROVED' : !comment.blocked,
+            isAdmin: hasIsAdmin ? comment.is_admin_comment === 1 : false,
+          },
+          create: {
+            strapiId: comment.id,
+            articleId: article.id,
+            content: comment.content,
+            authorName,
+            authorEmail,
+            isApproved: hasApproval ? comment.approval_status === 'APPROVED' : !comment.blocked,
+            isAdmin: hasIsAdmin ? comment.is_admin_comment === 1 : false,
+            createdAt: comment.created_at || new Date(),
           },
         })
+
+        migrated++
+        summary.imported.comments = migrated
+      } catch {
+        summary.errors.comments++
+      } finally {
+        processed++
       }
-    } catch {
-      summary.errors.comments++
     }
+
+    await emit(onProgress, {
+      step: 'comments',
+      message: `${processed} از ${totalToProcess} نظر بررسی شد (${migrated} منتقل شد)`,
+      progressCurrent: processed,
+      progressTotal: totalToProcess,
+      summary: {
+        imported: summary.imported,
+        skipped: summary.skipped,
+        errors: summary.errors,
+      },
+    })
   }
 
   try {
-    const [threadLinks] = await conn.execute(
-      'SELECT comment_id, inv_comment_id FROM comments_comment_thread_of_links'
-    )
+    let threadOffset = 0
 
-    for (const link of threadLinks as MysqlRow[]) {
-      try {
-        const child = await prisma.comment.findUnique({
-          where: { strapiId: link.comment_id },
-        })
-        const parent = await prisma.comment.findUnique({
-          where: { strapiId: link.inv_comment_id },
-        })
+    while (true) {
+      const [threadRows] = await conn.execute(
+        `SELECT comment_id, inv_comment_id
+         FROM comments_comment_thread_of_links
+         ORDER BY comment_id ASC
+         LIMIT ${COMMENT_THREAD_BATCH_SIZE}
+         OFFSET ${threadOffset}`
+      )
 
-        if (child && parent) {
-          await prisma.comment.update({
-            where: { id: child.id },
-            data: { parentId: parent.id },
-          })
-          summary.imported.threadedComments++
-        }
-      } catch {
-        // Skip invalid thread links.
+      const threadLinks = threadRows as MysqlRow[]
+
+      if (threadLinks.length === 0) {
+        break
       }
+
+      for (const link of threadLinks) {
+        try {
+          const child = await prisma.comment.findUnique({
+            where: { strapiId: link.comment_id },
+          })
+          const parent = await prisma.comment.findUnique({
+            where: { strapiId: link.inv_comment_id },
+          })
+
+          if (child && parent) {
+            await prisma.comment.update({
+              where: { id: child.id },
+              data: { parentId: parent.id },
+            })
+            summary.imported.threadedComments++
+          }
+        } catch {
+          // Skip invalid thread links.
+        }
+      }
+
+      threadOffset += threadLinks.length
     }
   } catch {
     // The thread links table may not exist on all datasets.
