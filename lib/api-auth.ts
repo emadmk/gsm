@@ -44,11 +44,14 @@ export async function requireAuthorizedSession(
 
   if (
     enforceSameOrigin &&
-    !isTrustedMutationOrigin(
-      request.nextUrl.origin,
-      request.headers.get('origin'),
-      request.headers.get('referer')
-    )
+    !isTrustedMutationOrigin({
+      requestOrigin: request.nextUrl.origin,
+      originHeader: request.headers.get('origin'),
+      refererHeader: request.headers.get('referer'),
+      hostHeader: request.headers.get('host'),
+      forwardedHostHeader: request.headers.get('x-forwarded-host'),
+      forwardedProtoHeader: request.headers.get('x-forwarded-proto'),
+    })
   ) {
     return {
       response: NextResponse.json({ error: 'Invalid origin' }, { status: 403 }),

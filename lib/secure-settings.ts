@@ -6,6 +6,8 @@ const sensitiveSettingKeys = new Set([
   's3_access_key',
   's3_secret_key',
   'smtp_password',
+  'strapi_import_user',
+  'strapi_import_password',
 ])
 
 function getEncryptionSecret() {

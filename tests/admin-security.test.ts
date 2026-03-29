@@ -35,49 +35,67 @@ test('admin-only api detection matches expected endpoints', () => {
 
 test('trusted mutation origin accepts matching origin header', () => {
   assert.equal(
-    isTrustedMutationOrigin(
-      'https://admin.example.com',
-      'https://admin.example.com',
-      null
-    ),
+    isTrustedMutationOrigin({
+      requestOrigin: 'https://admin.example.com',
+      originHeader: 'https://admin.example.com',
+      refererHeader: null,
+    }),
     true
   )
 })
 
 test('trusted mutation origin accepts referer fallback from same origin', () => {
   assert.equal(
-    isTrustedMutationOrigin(
-      'https://admin.example.com',
-      null,
-      'https://admin.example.com/admin/articles'
-    ),
+    isTrustedMutationOrigin({
+      requestOrigin: 'https://admin.example.com',
+      originHeader: null,
+      refererHeader: 'https://admin.example.com/admin/articles',
+    }),
     true
   )
 })
 
 test('trusted mutation origin rejects cross-origin requests', () => {
   assert.equal(
-    isTrustedMutationOrigin(
-      'https://admin.example.com',
-      'https://evil.example.com',
-      null
-    ),
+    isTrustedMutationOrigin({
+      requestOrigin: 'https://admin.example.com',
+      originHeader: 'https://evil.example.com',
+      refererHeader: null,
+    }),
     false
   )
 
   assert.equal(
-    isTrustedMutationOrigin(
-      'https://admin.example.com',
-      null,
-      'https://evil.example.com/attack'
-    ),
+    isTrustedMutationOrigin({
+      requestOrigin: 'https://admin.example.com',
+      originHeader: null,
+      refererHeader: 'https://evil.example.com/attack',
+    }),
     false
   )
 })
 
 test('trusted mutation origin rejects missing origin and referer', () => {
   assert.equal(
-    isTrustedMutationOrigin('https://admin.example.com', null, null),
+    isTrustedMutationOrigin({
+      requestOrigin: 'https://admin.example.com',
+      originHeader: null,
+      refererHeader: null,
+    }),
     false
+  )
+})
+
+test('trusted mutation origin accepts forwarded proxy origin', () => {
+  assert.equal(
+    isTrustedMutationOrigin({
+      requestOrigin: 'http://127.0.0.1:3000',
+      originHeader: 'http://172.30.4.13',
+      refererHeader: null,
+      hostHeader: '127.0.0.1:3000',
+      forwardedHostHeader: '172.30.4.13',
+      forwardedProtoHeader: 'http',
+    }),
+    true
   )
 })

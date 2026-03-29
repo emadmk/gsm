@@ -11,6 +11,7 @@ import {
   Loader2,
   Play,
   RefreshCw,
+  Save,
   ShieldCheck,
   TerminalSquare,
 } from 'lucide-react'
@@ -113,8 +114,6 @@ interface FormState {
   commentLimit: string
 }
 
-const STORAGE_KEY = 'gsm.strapi.import.form'
-
 const defaultForm: FormState = {
   host: '',
   port: '3306',
@@ -181,35 +180,18 @@ export default function StrapiImportPage() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [selectedRun, setSelectedRun] = useState<ImportRunDetail | null>(null)
   const [testResult, setTestResult] = useState<TestConnectionResult | null>(null)
+  const [loadingConfig, setLoadingConfig] = useState(true)
   const [loadingRuns, setLoadingRuns] = useState(true)
+  const [savingConfig, setSavingConfig] = useState(false)
   const [testingConnection, setTestingConnection] = useState(false)
   const [startingImport, setStartingImport] = useState(false)
   const [refreshingRun, setRefreshingRun] = useState(false)
+  const [passwordSaved, setPasswordSaved] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
   useEffect(() => {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return
-
-    try {
-      const saved = JSON.parse(raw) as Partial<FormState>
-      setForm((current) => ({
-        ...current,
-        ...saved,
-        password: '',
-      }))
-    } catch {
-      // Ignore invalid local storage values.
-    }
-  }, [])
-
-  useEffect(() => {
-    const { password: _password, ...persisted } = form
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted))
-  }, [form])
-
-  useEffect(() => {
+    void loadConfig()
     void loadRuns(false)
   }, [])
 
@@ -273,6 +255,34 @@ export default function StrapiImportPage() {
     }
   }
 
+  async function loadConfig() {
+    try {
+      setLoadingConfig(true)
+
+      const res = await fetch('/api/imports/strapi/config')
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'خطا در دریافت تنظیمات اتصال')
+      }
+
+      setForm((current) => ({
+        ...current,
+        host: data.connection?.host || '',
+        port: String(data.connection?.port || 3306),
+        user: data.connection?.user || '',
+        password: '',
+        database: data.connection?.database || '',
+        s3BaseUrl: data.connection?.s3BaseUrl || '',
+      }))
+      setPasswordSaved(Boolean(data.passwordSaved))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'خطا در دریافت تنظیمات اتصال')
+    } finally {
+      setLoadingConfig(false)
+    }
+  }
+
   async function loadRunDetails(id: string, silent = false) {
     try {
       if (!silent) {
@@ -294,23 +304,55 @@ export default function StrapiImportPage() {
     }
   }
 
-  function buildRequestPayload() {
+  function buildConnectionPayload() {
     return {
-      connection: {
-        host: form.host.trim(),
-        port: Number.parseInt(form.port || '3306', 10),
-        user: form.user.trim(),
-        password: form.password,
-        database: form.database.trim(),
-        s3BaseUrl: form.s3BaseUrl.trim(),
-      },
-      options: {
-        dryRun: form.dryRun,
-        skipComments: form.skipComments,
-        limit: parseOptionalNumber(form.limit),
-        offset: parseOptionalNumber(form.offset),
-        commentLimit: parseOptionalNumber(form.commentLimit),
-      },
+      host: form.host.trim(),
+      port: Number.parseInt(form.port || '3306', 10),
+      user: form.user.trim(),
+      password: form.password,
+      database: form.database.trim(),
+      s3BaseUrl: form.s3BaseUrl.trim(),
+    }
+  }
+
+  function buildOptionsPayload() {
+    return {
+      dryRun: form.dryRun,
+      skipComments: form.skipComments,
+      limit: parseOptionalNumber(form.limit),
+      offset: parseOptionalNumber(form.offset),
+      commentLimit: parseOptionalNumber(form.commentLimit),
+    }
+  }
+
+  async function saveConnection(showSuccessMessage = true) {
+    try {
+      setSavingConfig(true)
+
+      const res = await fetch('/api/imports/strapi/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildConnectionPayload()),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'ذخیره تنظیمات اتصال ناموفق بود')
+      }
+
+      setPasswordSaved(Boolean(data.passwordSaved))
+      setForm((current) => ({ ...current, password: '' }))
+
+      if (showSuccessMessage) {
+        setSuccess('تنظیمات اتصال Strapi روی سرور ذخیره شد')
+      }
+
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'خطا در ذخیره تنظیمات اتصال')
+      return false
+    } finally {
+      setSavingConfig(false)
     }
   }
 
@@ -321,10 +363,15 @@ export default function StrapiImportPage() {
     setTestResult(null)
 
     try {
+      const saved = await saveConnection(false)
+      if (!saved) {
+        return
+      }
+
       const res = await fetch('/api/imports/strapi/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildRequestPayload().connection),
+        body: JSON.stringify({}),
       })
 
       const data = await res.json()
@@ -334,7 +381,7 @@ export default function StrapiImportPage() {
       }
 
       setTestResult(data as TestConnectionResult)
-      setSuccess('اتصال به دیتابیس Strapi با موفقیت بررسی شد')
+      setSuccess('تنظیمات ذخیره شد و اتصال دیتابیس Strapi با موفقیت بررسی شد')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'خطا در تست اتصال')
     } finally {
@@ -348,10 +395,15 @@ export default function StrapiImportPage() {
     setSuccess('')
 
     try {
+      const saved = await saveConnection(false)
+      if (!saved) {
+        return
+      }
+
       const res = await fetch('/api/imports/strapi', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildRequestPayload()),
+        body: JSON.stringify(buildOptionsPayload()),
       })
 
       const data = await res.json()
@@ -369,8 +421,8 @@ export default function StrapiImportPage() {
       setSelectedRunId(newRunId)
       setSuccess(
         form.dryRun
-          ? 'Dry run شروع شد و نتیجه در همین صفحه نمایش داده می‌شود'
-          : 'درون‌ریزی Strapi شروع شد و پیشرفت آن در همین صفحه نمایش داده می‌شود'
+          ? 'تنظیمات ذخیره شد و Dry run روی سرور شروع شد'
+          : 'تنظیمات ذخیره شد و درون‌ریزی Strapi روی سرور شروع شد'
       )
       setForm((current) => ({ ...current, password: '' }))
       await loadRuns(false)
@@ -390,12 +442,12 @@ export default function StrapiImportPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">درون‌ریزی Strapi</h1>
           <p className="mt-1 text-sm text-gray-500">
-            اتصال دیتابیس Strapi را وارد کنید، اتصال را تست کنید و سپس داده‌ها را مستقیم به دیتابیس همین اپ منتقل کنید.
+            تنظیمات اتصال Strapi را روی سرور ذخیره کنید، اتصال را تست کنید و سپس درون‌ریزی را مستقیما از سمت سرور اجرا کنید.
           </p>
         </div>
         <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           <ShieldCheck className="h-4 w-4" />
-          رمز دیتابیس در مرورگر یا دیتابیس این پنل ذخیره نمی‌شود.
+          رمز دیتابیس به‌صورت رمزنگاری‌شده در سرور ذخیره می‌شود و در مرورگر نگه‌داری نمی‌شود.
         </div>
       </div>
 
@@ -420,7 +472,7 @@ export default function StrapiImportPage() {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-gray-800">اتصال دیتابیس Strapi</h2>
-                <p className="text-sm text-gray-500">اطلاعات منبع Strapi را برای تست و درون‌ریزی وارد کنید.</p>
+                <p className="text-sm text-gray-500">اطلاعات منبع Strapi را برای ذخیره روی سرور، تست اتصال و اجرای درون‌ریزی وارد کنید.</p>
               </div>
             </div>
 
@@ -477,7 +529,11 @@ export default function StrapiImportPage() {
                     value={form.password}
                     onChange={(event) => setForm({ ...form, password: event.target.value })}
                     className="w-full rounded-lg border border-gray-300 px-4 py-2.5 pl-11 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                    placeholder="رمز فقط برای همین اجرا استفاده می‌شود"
+                    placeholder={
+                      passwordSaved
+                        ? 'برای نگه‌داشتن رمز فعلی، این فیلد را خالی بگذارید'
+                        : 'رمز برای ذخیره روی سرور لازم است'
+                    }
                     dir="ltr"
                   />
                   <button
@@ -488,6 +544,11 @@ export default function StrapiImportPage() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {passwordSaved && !form.password && (
+                  <p className="mt-2 text-xs text-emerald-600">
+                    رمز فعلی روی سرور ذخیره شده است.
+                  </p>
+                )}
               </div>
 
               <div className="md:col-span-2">
@@ -575,8 +636,26 @@ export default function StrapiImportPage() {
 
             <div className="mt-6 flex flex-wrap gap-3">
               <button
+                onClick={() => {
+                  setError('')
+                  setSuccess('')
+                  setTestResult(null)
+                  void saveConnection(true)
+                }}
+                disabled={loadingConfig || savingConfig || testingConnection || startingImport}
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 px-4 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingConfig ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                ذخیره روی سرور
+              </button>
+
+              <button
                 onClick={handleTestConnection}
-                disabled={testingConnection || startingImport}
+                disabled={loadingConfig || savingConfig || testingConnection || startingImport}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {testingConnection ? (
@@ -589,7 +668,7 @@ export default function StrapiImportPage() {
 
               <button
                 onClick={handleStartImport}
-                disabled={startingImport || testingConnection}
+                disabled={loadingConfig || savingConfig || startingImport || testingConnection}
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {startingImport ? (
@@ -600,6 +679,12 @@ export default function StrapiImportPage() {
                 {form.dryRun ? 'شروع Dry Run' : 'شروع درون‌ریزی'}
               </button>
             </div>
+
+            {loadingConfig && (
+              <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                در حال دریافت تنظیمات ذخیره‌شده از سرور...
+              </div>
+            )}
 
             {testResult && (
               <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">

@@ -13,6 +13,8 @@ process.env.NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || 'test-secret-for-se
 test('sensitive settings are detected correctly', () => {
   assert.equal(isSensitiveSettingKey('s3_secret_key'), true)
   assert.equal(isSensitiveSettingKey('smtp_password'), true)
+  assert.equal(isSensitiveSettingKey('strapi_import_password'), true)
+  assert.equal(isSensitiveSettingKey('strapi_import_user'), true)
   assert.equal(isSensitiveSettingKey('site_title'), false)
 })
 
