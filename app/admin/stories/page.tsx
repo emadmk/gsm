@@ -8,6 +8,7 @@ import {
   X,
   Loader2,
   GripVertical,
+  Search,
 } from 'lucide-react'
 import MediaUpload from '@/components/admin/MediaUpload'
 import { getImageUrl } from '@/lib/utils'
@@ -34,6 +35,8 @@ export default function StoriesPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [form, setForm] = useState({
     title: '',
@@ -175,6 +178,17 @@ export default function StoriesPage() {
           <Plus className="w-4 h-4" />
           استوری جدید
         </button>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="جستجو..."
+          className="w-full pr-10 pl-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+        />
       </div>
 
       {/* Form */}
@@ -355,7 +369,9 @@ export default function StoriesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {stories.map((story) => (
+              {stories.filter((story) =>
+                story.title.toLowerCase().includes(searchQuery.toLowerCase())
+              ).map((story) => (
                 <tr key={story.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     {story.cover ? (
@@ -408,7 +424,9 @@ export default function StoriesPage() {
                   </td>
                 </tr>
               ))}
-              {stories.length === 0 && (
+              {stories.filter((story) =>
+                story.title.toLowerCase().includes(searchQuery.toLowerCase())
+              ).length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                     استوری‌ای وجود ندارد

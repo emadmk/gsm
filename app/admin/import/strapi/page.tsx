@@ -13,6 +13,7 @@ import {
   RefreshCw,
   ShieldCheck,
   TerminalSquare,
+  XCircle,
 } from 'lucide-react'
 
 type ImportRunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
@@ -185,6 +186,7 @@ export default function StrapiImportPage() {
   const [testingConnection, setTestingConnection] = useState(false)
   const [startingImport, setStartingImport] = useState(false)
   const [refreshingRun, setRefreshingRun] = useState(false)
+  const [cancellingImport, setCancellingImport] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -378,6 +380,36 @@ export default function StrapiImportPage() {
       setError(err instanceof Error ? err.message : 'خطا در شروع درون‌ریزی')
     } finally {
       setStartingImport(false)
+    }
+  }
+
+  async function handleCancelImport() {
+    if (!selectedRunId || cancellingImport) return
+    setCancellingImport(true)
+    setError('')
+
+    try {
+      const res = await fetch(`/api/imports/strapi/${selectedRunId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'خطا در لغو درون‌ریزی')
+      }
+
+      setSuccess('درون‌ریزی با موفقیت لغو شد')
+      await loadRuns(false)
+      if (selectedRunId) {
+        await loadRunDetails(selectedRunId, false)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'خطا در لغو درون‌ریزی')
+    } finally {
+      setCancellingImport(false)
     }
   }
 
@@ -754,7 +786,21 @@ export default function StrapiImportPage() {
 
                 {isSelectedRunRunning && (
                   <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                    این اجرا در حال انجام است و صفحه به صورت خودکار بروزرسانی می‌شود.
+                    <div className="flex items-center justify-between">
+                      <span>این اجرا در حال انجام است و صفحه به صورت خودکار بروزرسانی می‌شود.</span>
+                      <button
+                        onClick={handleCancelImport}
+                        disabled={cancellingImport}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-600 disabled:opacity-60"
+                      >
+                        {cancellingImport ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5" />
+                        )}
+                        لغو درون‌ریزی
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

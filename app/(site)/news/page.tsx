@@ -14,6 +14,9 @@ import ArticleCard from '@/components/articles/ArticleCard'
 import Pagination from '@/components/common/Pagination'
 import { Clock, User } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const ITEMS_PER_PAGE = 12
 
 interface PageProps {

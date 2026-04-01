@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, X, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Loader2, Search } from 'lucide-react'
 import MediaUpload from '@/components/admin/MediaUpload'
 
 interface Ad {
@@ -42,6 +42,7 @@ export default function AdsPage() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [filterZone, setFilterZone] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [form, setForm] = useState({
     zone: 'header',
@@ -176,6 +177,17 @@ export default function AdsPage() {
           <Plus className="w-4 h-4" />
           تبلیغ جدید
         </button>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="جستجو..."
+          className="w-full pr-10 pl-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+        />
       </div>
 
       {/* Zone filter */}
@@ -326,7 +338,10 @@ export default function AdsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {ads.map((ad) => (
+              {ads.filter((ad) =>
+                (ad.title && ad.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                (!searchQuery)
+              ).map((ad) => (
                 <tr key={ad.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     {ad.imageUrl ? (
@@ -397,7 +412,10 @@ export default function AdsPage() {
                   </td>
                 </tr>
               ))}
-              {ads.length === 0 && (
+              {ads.filter((ad) =>
+                (ad.title && ad.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                (!searchQuery)
+              ).length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                     تبلیغی وجود ندارد

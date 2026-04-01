@@ -8,6 +8,7 @@ import {
   X,
   Loader2,
   FolderTree,
+  Search,
 } from 'lucide-react'
 
 interface Category {
@@ -28,6 +29,8 @@ export default function CategoriesPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [form, setForm] = useState({
     name: '',
@@ -134,9 +137,15 @@ export default function CategoriesPage() {
       .toLowerCase()
   }
 
+  // Filter by search
+  const filteredCategories = categories.filter((c) =>
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.slug.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
   // Separate root and child categories
-  const rootCategories = categories.filter((c) => !c.parentId)
-  const childCategories = categories.filter((c) => c.parentId)
+  const rootCategories = filteredCategories.filter((c) => !c.parentId)
+  const childCategories = filteredCategories.filter((c) => c.parentId)
 
   if (loading) {
     return (
@@ -160,6 +169,17 @@ export default function CategoriesPage() {
           <Plus className="w-4 h-4" />
           دسته‌بندی جدید
         </button>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="جستجو..."
+          className="w-full pr-10 pl-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+        />
       </div>
 
       {/* Form */}

@@ -2,9 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Vazirmatn - locally hosted, no CDN dependency */
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* IRANSansX fallback aliases using Vazirmatn */
 @font-face {
   font-family: 'IRANSansX';
-  src: url('/fonts/IRANSansX-Regular.woff2') format('woff2');
+  src: url('/fonts/Vazirmatn-Regular.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -12,7 +46,7 @@
 
 @font-face {
   font-family: 'IRANSansX';
-  src: url('/fonts/IRANSansX-Medium.woff2') format('woff2');
+  src: url('/fonts/Vazirmatn-Medium.woff2') format('woff2');
   font-weight: 500;
   font-style: normal;
   font-display: swap;
@@ -20,7 +54,7 @@
 
 @font-face {
   font-family: 'IRANSansX';
-  src: url('/fonts/IRANSansX-Bold.woff2') format('woff2');
+  src: url('/fonts/Vazirmatn-Bold.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -28,7 +62,7 @@
 
 @font-face {
   font-family: 'IRANSansX';
-  src: url('/fonts/IRANSansX-Black.woff2') format('woff2');
+  src: url('/fonts/Vazirmatn-Black.woff2') format('woff2');
   font-weight: 900;
   font-style: normal;
   font-display: swap;
@@ -70,7 +104,7 @@
 
   html {
     direction: rtl;
-    font-family: 'IRANSansX', arial, sans-serif;
+    font-family: 'Vazirmatn', 'IRANSansX', arial, sans-serif;
     scroll-behavior: smooth;
   }
 

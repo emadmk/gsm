@@ -127,6 +127,13 @@ model Article {
   @@index([postType])
   @@index([publishedAt])
   @@index([featured])
+  // Composite indexes for common homepage/listing queries
+  @@index([status, publishedAt])
+  @@index([status, postType, publishedAt])
+  @@index([status, viewCount])
+  @@index([status, modifiedAt])
+  @@index([status, featured, publishedAt])
+  @@index([title])
 }
 
 enum PostType {
@@ -212,6 +219,9 @@ model Comment {
   @@index([articleId])
   @@index([parentId])
   @@index([strapiId])
+  @@index([isApproved])
+  @@index([articleId, isApproved])
+  @@index([createdAt])
 }
 
 // ==================== Stories ====================
@@ -341,4 +351,25 @@ enum ImportRunStatus {
 
 enum ImportSourceType {
   STRAPI
+}
+
+// ==================== Media ====================
+
+model Media {
+  id           Int      @id @default(autoincrement())
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  width        Int?
+  height       Int?
+  altText      String?
+  url          String
+  path         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([mimeType])
+  @@index([createdAt])
+  @@index([filename])
 }

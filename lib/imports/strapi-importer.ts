@@ -558,6 +558,20 @@ async function migratePosts(params: {
   let migrated = 0
 
   for (const post of posts) {
+    // Emit progress to check for cancellation
+    if (migrated % 50 === 0 && migrated > 0) {
+      await emit(onProgress, {
+        step: 'posts',
+        message: `${migrated} از ${posts.length} مطلب منتقل شد`,
+        progressCurrent: migrated,
+        progressTotal: posts.length,
+        summary: {
+          imported: summary.imported,
+          errors: summary.errors,
+        },
+      })
+    }
+
     try {
       const postType = resolvePostType(post.type)
       const title = post.titre || `پست ${post.id}`

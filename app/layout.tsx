@@ -89,14 +89,14 @@ export default function RootLayout({
       <head>
         <link
           rel="preload"
-          href="/fonts/IRANSansX-Regular.woff2"
+          href="/fonts/Vazirmatn-Regular.woff2"
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"
         />
         <link
           rel="preload"
-          href="/fonts/IRANSansX-Bold.woff2"
+          href="/fonts/Vazirmatn-Bold.woff2"
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"

@@ -24,6 +24,8 @@ import {
   Image as ImageIcon,
   ChevronDown,
   Bell,
+  Globe,
+  Bot,
 } from 'lucide-react'
 import { hasRequiredRole, type AdminRole } from '@/lib/admin-security'
 
@@ -37,7 +39,9 @@ const navItems = [
   { href: '/admin/comments', label: 'نظرات', icon: MessageSquare },
   { href: '/admin/stories', label: 'استوری‌ها', icon: CircleDot },
   { href: '/admin/ads', label: 'تبلیغات', icon: Megaphone },
-  { href: '/admin/media', label: 'رسانه', icon: ImageIcon, requiredRole: 'ADMIN' as AdminRole },
+  { href: '/admin/media', label: 'کتابخانه رسانه', icon: ImageIcon, requiredRole: 'ADMIN' as AdminRole },
+  { href: '/admin/seo', label: 'مدیریت SEO', icon: Globe, requiredRole: 'ADMIN' as AdminRole },
+  { href: '/admin/aeo', label: 'بهینه‌سازی AEO', icon: Bot, requiredRole: 'ADMIN' as AdminRole },
   { href: '/admin/contact', label: 'پیام‌ها', icon: Mail },
   { href: '/admin/import/strapi', label: 'درون‌ریزی', icon: Database, requiredRole: 'ADMIN' as AdminRole },
   { href: '/admin/settings', label: 'تنظیمات', icon: Settings, requiredRole: 'ADMIN' as AdminRole },
@@ -54,7 +58,10 @@ const breadcrumbMap: Record<string, string> = {
   '/admin/comments': 'نظرات',
   '/admin/stories': 'استوری‌ها',
   '/admin/ads': 'تبلیغات',
-  '/admin/media': 'رسانه',
+  '/admin/media': 'کتابخانه رسانه',
+  '/admin/media/settings': 'تنظیمات رسانه',
+  '/admin/seo': 'مدیریت SEO',
+  '/admin/aeo': 'بهینه‌سازی AEO',
   '/admin/contact': 'پیام‌ها',
   '/admin/import/strapi': 'درون‌ریزی Strapi',
   '/admin/settings': 'تنظیمات',

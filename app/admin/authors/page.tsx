@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, X, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Loader2, Search } from 'lucide-react'
 import MediaUpload from '@/components/admin/MediaUpload'
 
 interface Author {
@@ -21,6 +21,8 @@ export default function AuthorsPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [form, setForm] = useState({
     name: '',
@@ -141,6 +143,17 @@ export default function AuthorsPage() {
         </button>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="جستجو..."
+          className="w-full pr-10 pl-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+        />
+      </div>
+
       {/* Form */}
       {showForm && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
@@ -257,7 +270,10 @@ export default function AuthorsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {authors.map((author) => (
+              {authors.filter((author) =>
+                author.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (author.email && author.email.toLowerCase().includes(searchQuery.toLowerCase()))
+              ).map((author) => (
                 <tr key={author.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     {author.avatar ? (
@@ -298,7 +314,10 @@ export default function AuthorsPage() {
                   </td>
                 </tr>
               ))}
-              {authors.length === 0 && (
+              {authors.filter((author) =>
+                author.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (author.email && author.email.toLowerCase().includes(searchQuery.toLowerCase()))
+              ).length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                     نویسنده‌ای وجود ندارد

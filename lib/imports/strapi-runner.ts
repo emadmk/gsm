@@ -10,6 +10,7 @@ import {
 
 const globalForImports = globalThis as {
   activeStrapiRuns?: Set<string>
+  cancelledStrapiRuns?: Set<string>
 }
 
 function getActiveStrapiRuns() {
@@ -18,6 +19,14 @@ function getActiveStrapiRuns() {
   }
 
   return globalForImports.activeStrapiRuns
+}
+
+export function isImportCancelled(runId: string): boolean {
+  return globalForImports.cancelledStrapiRuns?.has(runId) ?? false
+}
+
+function clearCancellation(runId: string) {
+  globalForImports.cancelledStrapiRuns?.delete(runId)
 }
 
 function sanitizeJsonValue(value: unknown): unknown {
@@ -88,6 +97,11 @@ export async function startStrapiImportRun(params: {
   let latestSummary: Partial<StrapiImportSummary> = {}
 
   const persistProgress = async (event: StrapiImportProgressEvent) => {
+    // Check if import was cancelled
+    if (isImportCancelled(runId)) {
+      throw new Error('درون‌ریزی توسط کاربر لغو شد')
+    }
+
     logText = logText ? `${logText}\n${formatLogLine(event)}` : formatLogLine(event)
 
     if (event.summary) {
@@ -172,5 +186,6 @@ export async function startStrapiImportRun(params: {
     })
   } finally {
     activeRuns.delete(runId)
+    clearCancellation(runId)
   }
 }

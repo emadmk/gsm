@@ -73,12 +73,18 @@ function getConfiguredS3BaseUrl(): string | null {
 }
 
 export function getImageUrl(path: string | null | undefined): string {
-  if (!path) return '/images/placeholder.svg'
-  if (path.startsWith('http')) return path
+  if (!path || path.trim() === '') return '/images/placeholder.svg'
+  // Already a full URL
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  // Data URLs
+  if (path.startsWith('data:')) return path
+
   const baseUrl = getConfiguredS3BaseUrl()
-  // Strapi stores paths like /uploads/xxx.jpg - prepend S3 base
-  if (!baseUrl) return path.startsWith('/') ? path : `/${path}`
-  return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`
+  const cleanPath = path.startsWith('/') ? path : `/${path}`
+
+  // If no S3 base URL configured, serve from local
+  if (!baseUrl) return cleanPath
+  return `${baseUrl}${cleanPath}`
 }
 
 export function generateMetaTitle(title: string): string {

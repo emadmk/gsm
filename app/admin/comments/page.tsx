@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Search,
 } from 'lucide-react'
 
 interface Comment {
@@ -59,6 +60,7 @@ export default function CommentsPage() {
   const [replyContent, setReplyContent] = useState('')
   const [submittingReply, setSubmittingReply] = useState(false)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const fetchComments = useCallback(async () => {
     setLoading(true)
@@ -211,6 +213,17 @@ export default function CommentsPage() {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="جستجو..."
+          className="w-full pr-10 pl-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+        />
+      </div>
+
       {/* Filter tabs */}
       <div className="bg-white rounded-2xl border border-gray-100 p-1.5 inline-flex gap-1">
         {filterTabs.map((tab) => (
@@ -243,7 +256,10 @@ export default function CommentsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {comments.map((comment) => (
+          {comments.filter((comment) =>
+            comment.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            comment.authorName.toLowerCase().includes(searchQuery.toLowerCase())
+          ).map((comment) => (
             <div
               key={comment.id}
               className={`bg-white rounded-2xl border overflow-hidden transition-all duration-200 hover:shadow-md ${

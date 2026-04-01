@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, X, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Loader2, Search } from 'lucide-react'
 
 interface Tag {
   id: number
@@ -16,6 +16,7 @@ export default function TagsPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [form, setForm] = useState({ name: '', slug: '' })
 
   const fetchTags = useCallback(async () => {
@@ -112,6 +113,17 @@ export default function TagsPage() {
         </button>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="جستجو..."
+          className="w-full pr-10 pl-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+        />
+      </div>
+
       {/* Form */}
       {showForm && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
@@ -179,7 +191,10 @@ export default function TagsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {tags.map((tag) => (
+              {tags.filter((tag) =>
+                tag.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                tag.slug.toLowerCase().includes(searchQuery.toLowerCase())
+              ).map((tag) => (
                 <tr key={tag.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{tag.name}</td>
                   <td className="px-4 py-3 text-gray-500" dir="ltr">{tag.slug}</td>
@@ -204,7 +219,10 @@ export default function TagsPage() {
                   </td>
                 </tr>
               ))}
-              {tags.length === 0 && (
+              {tags.filter((tag) =>
+                tag.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                tag.slug.toLowerCase().includes(searchQuery.toLowerCase())
+              ).length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
                     تگی وجود ندارد

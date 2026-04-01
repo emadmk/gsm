@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Inbox,
+  Search,
 } from 'lucide-react'
 
 interface ContactMessage {
@@ -39,6 +40,7 @@ export default function ContactPage() {
   const [total, setTotal] = useState(0)
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const fetchMessages = useCallback(async () => {
     setLoading(true)
@@ -136,6 +138,17 @@ export default function ContactPage() {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="جستجو..."
+          className="w-full pr-10 pl-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+        />
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center h-48">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -162,7 +175,11 @@ export default function ContactPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {messages.map((msg) => (
+                {messages.filter((msg) =>
+                  msg.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  msg.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  msg.email.toLowerCase().includes(searchQuery.toLowerCase())
+                ).map((msg) => (
                   <tr
                     key={msg.id}
                     className={`hover:bg-gray-50 cursor-pointer ${!msg.isRead ? 'bg-blue-50/40' : ''}`}
