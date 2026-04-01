@@ -336,7 +336,7 @@ export default function AeoManagementPage() {
 
   // ==================== Tabs ====================
 
-  const tabs: { key: Tab; label: string; icon: typeof Bot }[] = [
+  const tabs: { key: Tab; label: string; icon: typeof Brain }[] = [
     { key: 'faq', label: 'مدیریت FAQ', icon: HelpCircle },
     { key: 'schema', label: 'داده ساختاریافته', icon: Code2 },
     { key: 'snippets', label: 'بهینه‌سازی اسنیپت', icon: Sparkles },
