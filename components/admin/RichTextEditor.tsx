@@ -476,6 +476,7 @@ export default function RichTextEditor({
       Color,
     ],
     content: initialContent,
+    immediatelyRender: false,
     editorProps: {
       attributes: {
         class: 'post-content prose prose-sm max-w-none min-h-[400px] p-4 focus:outline-none',
@@ -502,7 +503,7 @@ export default function RichTextEditor({
 
   return (
     <div className="border border-gray-300 rounded-lg overflow-hidden bg-white shadow-sm">
-      <Toolbar editor={editor} />
+      {editor && <Toolbar editor={editor} />}
       <div className="relative">
         <EditorContent editor={editor} />
       </div>
