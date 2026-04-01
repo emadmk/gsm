@@ -178,7 +178,7 @@ export default async function HomePage() {
                   </h2>
                   <div className="flex items-center gap-3 mt-2 text-gray-200 caption">
                     {latestPosts[0].author && (
-                      <Link href={`/author/${latestPosts[0].author.slug}`} className="hover:text-white transition-colors" onClick={(e) => e.stopPropagation()}>
+                      <Link href={`/author/${latestPosts[0].author.slug}`} className="hover:text-white transition-colors">
                         {latestPosts[0].author.name}
                       </Link>
                     )}
@@ -202,7 +202,6 @@ export default async function HomePage() {
                     fill
                     className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                     sizes="(max-width: 768px) 100vw, 25vw"
-                    onError={(e) => { (e.target as HTMLImageElement).src = '/images/placeholder.svg' }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                   <div className="absolute bottom-0 right-0 left-0 p-3 transition-transform duration-300 group-hover:translate-y-[-2px]">
@@ -343,7 +342,7 @@ export default async function HomePage() {
                                   <User className="w-3 h-3 text-gray-400" />
                                 </div>
                               )}
-                              <Link href={`/author/${item.author.slug}`} className="caption text-gray-600 hover:text-primary-500 transition-colors" onClick={(e) => e.stopPropagation()}>{item.author.name}</Link>
+                              <Link href={`/author/${item.author.slug}`} className="caption text-gray-600 hover:text-primary-500 transition-colors">{item.author.name}</Link>
                             </div>
                           )}
                           {item.publishedAt && (
@@ -415,7 +414,7 @@ export default async function HomePage() {
                                   <User className="w-3 h-3 text-gray-400" />
                                 </div>
                               )}
-                              <Link href={`/author/${item.author.slug}`} className="caption text-gray-600 hover:text-primary-500 transition-colors" onClick={(e) => e.stopPropagation()}>{item.author.name}</Link>
+                              <Link href={`/author/${item.author.slug}`} className="caption text-gray-600 hover:text-primary-500 transition-colors">{item.author.name}</Link>
                             </div>
                           )}
                           {item.publishedAt && (
