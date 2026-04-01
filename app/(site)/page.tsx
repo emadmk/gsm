@@ -13,6 +13,7 @@ import {
 } from '@/lib/utils'
 import { Clock, User, Eye, RefreshCw } from 'lucide-react'
 import ScrollAnimations from './ScrollAnimations'
+import AuthorLink from '@/components/common/AuthorLink'
 
 // Force dynamic rendering - prevents stale cache (fixes 1398 date issue)
 export const dynamic = 'force-dynamic'
@@ -178,9 +179,7 @@ export default async function HomePage() {
                   </h2>
                   <div className="flex items-center gap-3 mt-2 text-gray-200 caption">
                     {latestPosts[0].author && (
-                      <span onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/author/${latestPosts[0].author!.slug}` }} className="hover:text-white transition-colors cursor-pointer">
-                        {latestPosts[0].author.name}
-                      </span>
+                      <AuthorLink slug={latestPosts[0].author.slug} name={latestPosts[0].author.name} className="hover:text-white transition-colors cursor-pointer" />
                     )}
                     {latestPosts[0].publishedAt && (
                       <span>{formatDateShort(latestPosts[0].publishedAt)}</span>
@@ -342,7 +341,7 @@ export default async function HomePage() {
                                   <User className="w-3 h-3 text-gray-400" />
                                 </div>
                               )}
-                              <span onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/author/${item.author!.slug}` }} className="caption text-gray-600 hover:text-primary-500 transition-colors cursor-pointer">{item.author.name}</span>
+                              <AuthorLink slug={item.author.slug} name={item.author.name} />
                             </div>
                           )}
                           {item.publishedAt && (
@@ -414,7 +413,7 @@ export default async function HomePage() {
                                   <User className="w-3 h-3 text-gray-400" />
                                 </div>
                               )}
-                              <span onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/author/${item.author!.slug}` }} className="caption text-gray-600 hover:text-primary-500 transition-colors cursor-pointer">{item.author.name}</span>
+                              <AuthorLink slug={item.author.slug} name={item.author.name} />
                             </div>
                           )}
                           {item.publishedAt && (

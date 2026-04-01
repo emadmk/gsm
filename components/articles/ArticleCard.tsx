@@ -2,6 +2,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Clock, User } from 'lucide-react'
 import { cn, getImageUrl, getPostUrl, formatDateShort, toPersianDigits, stripHtml } from '@/lib/utils'
+import AuthorLink from '@/components/common/AuthorLink'
 
 export interface ArticleCardArticle {
   id: number
@@ -112,12 +113,11 @@ export default function ArticleCard({ article, className, loading }: ArticleCard
                   <User className="w-3.5 h-3.5 text-gray-400" />
                 </div>
               )}
-              <span
-                onClick={article.author?.slug ? (e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/author/${article.author!.slug}` } : undefined}
-                className={`caption text-gray-600 ${article.author?.slug ? 'hover:text-primary-500 transition-colors cursor-pointer' : ''}`}
-              >
-                {article.author.name}
-              </span>
+              {article.author?.slug ? (
+                <AuthorLink slug={article.author.slug} name={article.author.name} />
+              ) : (
+                <span className="caption text-gray-600">{article.author.name}</span>
+              )}
             </div>
           )}
 
