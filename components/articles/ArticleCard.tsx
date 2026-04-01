@@ -99,7 +99,7 @@ export default function ArticleCard({ article, className, loading }: ArticleCard
         {/* Footer: Author, Date, Reading Time */}
         <div className="flex items-center gap-3 mt-auto pt-2">
           {article.author && (
-            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1.5">
               {article.author.avatar ? (
                 <Image
                   src={getImageUrl(article.author.avatar)}
