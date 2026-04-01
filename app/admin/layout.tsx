@@ -25,7 +25,7 @@ import {
   ChevronDown,
   Bell,
   Globe,
-  Bot,
+  Brain,
 } from 'lucide-react'
 import { hasRequiredRole, type AdminRole } from '@/lib/admin-security'
 
@@ -41,7 +41,7 @@ const navItems = [
   { href: '/admin/ads', label: 'تبلیغات', icon: Megaphone },
   { href: '/admin/media', label: 'کتابخانه رسانه', icon: ImageIcon, requiredRole: 'ADMIN' as AdminRole },
   { href: '/admin/seo', label: 'مدیریت SEO', icon: Globe, requiredRole: 'ADMIN' as AdminRole },
-  { href: '/admin/aeo', label: 'بهینه‌سازی AEO', icon: Bot, requiredRole: 'ADMIN' as AdminRole },
+  { href: '/admin/aeo', label: 'بهینه‌سازی AEO', icon: Brain, requiredRole: 'ADMIN' as AdminRole },
   { href: '/admin/contact', label: 'پیام‌ها', icon: Mail },
   { href: '/admin/import/strapi', label: 'درون‌ریزی', icon: Database, requiredRole: 'ADMIN' as AdminRole },
   { href: '/admin/settings', label: 'تنظیمات', icon: Settings, requiredRole: 'ADMIN' as AdminRole },
