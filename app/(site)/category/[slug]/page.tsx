@@ -15,7 +15,7 @@ interface PageProps {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug } = await params
+  const slug = decodeURIComponent((await params).slug)
   const category = await prisma.category.findUnique({ where: { slug } })
   if (!category) return {}
 
@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function CategoryPage({ params, searchParams }: PageProps) {
-  const { slug } = await params
+  const slug = decodeURIComponent((await params).slug)
   const sp = await searchParams
   const page = Math.max(1, Number(sp.page) || 1)
 
