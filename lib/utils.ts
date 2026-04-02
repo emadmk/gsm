@@ -113,8 +113,8 @@ export function getPostTypeLabel(postType: string): string {
 export function getPostTypeSlug(postType: string): string {
   const slugs: Record<string, string> = {
     NEWS: 'news',
-    ARTICLE: 'article',
-    REVIEW: 'review',
+    ARTICLE: 'articles',
+    REVIEW: 'reviews',
     STORY: 'story',
   }
   return slugs[postType] || 'news'

@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Save, Plus, Trash2, Loader2 } from 'lucide-react'
+ import { useEffect, useState } from 'react'
+ import { Save, Plus, Trash2, Loader2, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react'
 
 interface SettingEntry {
   key: string
@@ -32,6 +32,46 @@ export default function SettingsPage() {
   const [error, setError] = useState('')
   const [newKey, setNewKey] = useState('')
   const [newValue, setNewValue] = useState('')
+  const [migrateLoading, setMigrateLoading] = useState(false)
+  const [migrateCheckLoading, setMigrateCheckLoading] = useState(false)
+  const [migrateCount, setMigrateCount] = useState<number | null>(null)
+  const [migrateResult, setMigrateResult] = useState<string | null>(null)
+  const [migrateError, setMigrateError] = useState<string | null>(null)
+
+  const checkMigrateUrls = async () => {
+    setMigrateCheckLoading(true)
+    setMigrateError(null)
+    try {
+      const res = await fetch('/api/migrate-urls')
+      const data = await res.json()
+      setMigrateCount(data.totalArticlesWithOldUrls ?? 0)
+    } catch {
+      setMigrateError('خطا در بررسی')
+    } finally {
+      setMigrateCheckLoading(false)
+    }
+  }
+
+  const runMigrateUrls = async () => {
+    if (!confirm('آیا از اجرای بروزرسانی لینک‌ها اطمینان دارید؟ این عملیات قابل بازگشت نیست.')) return
+    setMigrateLoading(true)
+    setMigrateError(null)
+    setMigrateResult(null)
+    try {
+      const res = await fetch('/api/migrate-urls', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        setMigrateResult(data.message)
+        setMigrateCount(0)
+      } else {
+        setMigrateError(data.error || 'خطا در بروزرسانی')
+      }
+    } catch {
+      setMigrateError('خطا در ارتباط با سرور')
+    } finally {
+      setMigrateLoading(false)
+    }
+  }
 
   useEffect(() => {
     fetch('/api/settings')
@@ -252,6 +292,65 @@ export default function SettingsPage() {
             <Plus className="w-4 h-4" />
             افزودن
           </button>
+        </div>
+      </div>
+
+      {/* URL Migration Tool */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+        <h2 className="text-lg font-bold text-gray-800">بروزرسانی لینک‌های داخلی</h2>
+        <p className="text-sm text-gray-500">
+          این ابزار لینک‌های قدیمی داخل محتوای مطالب را بروزرسانی می‌کند:
+        </p>
+        <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 space-y-1" dir="ltr">
+          <div><code>/mag/article/</code> → <code>/mag/articles/</code></div>
+          <div><code>/mag/review/</code> → <code>/mag/reviews/</code></div>
+        </div>
+        <p className="text-xs text-gray-400">
+          فیلدهای بررسی‌شده: محتوا، خلاصه، توضیحات متا، آدرس کنونیکال، آدرس قدیمی
+        </p>
+
+        {migrateError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {migrateError}
+          </div>
+        )}
+
+        {migrateResult && (
+          <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            {migrateResult}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={checkMigrateUrls}
+            disabled={migrateCheckLoading}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 disabled:opacity-50 transition-colors"
+          >
+            {migrateCheckLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            بررسی تعداد
+          </button>
+
+          {migrateCount !== null && (
+            <span className="text-sm text-gray-600">
+              {migrateCount === 0
+                ? 'همه لینک‌ها بروز هستند ✓'
+                : `${migrateCount.toLocaleString('fa-IR')} مطلب نیاز به بروزرسانی دارد`}
+            </span>
+          )}
+
+          {migrateCount !== null && migrateCount > 0 && (
+            <button
+              onClick={runMigrateUrls}
+              disabled={migrateLoading}
+              className="flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 disabled:opacity-50 transition-colors"
+            >
+              {migrateLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              اجرای بروزرسانی
+            </button>
+          )}
         </div>
       </div>
     </div>
