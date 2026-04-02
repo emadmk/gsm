@@ -515,38 +515,43 @@ async function migratePosts(params: {
     message: 'در حال انتقال مطالب',
   })
 
-  let query = `
-    SELECT p.id, p.titre, p.main_text, p.summary, p.type,
-           p.reading_time, p.is_hot, p.source,
-           p.published_at, p.created_at, p.updated_at,
-           COALESCE(p.views, 0) as views,
-           p.related_brand, p.related_product, p.comment
+  // Get total count for progress tracking
+  const countQuery = `
+    SELECT COUNT(*) as total
     FROM posts p
     WHERE p.published_at IS NOT NULL
-    ORDER BY p.id ASC
   `
-
-  if (options.limit) query += ` LIMIT ${options.limit}`
-  if (options.offset) query += ` OFFSET ${options.offset}`
-
-  const [rows] = await conn.execute(query)
-  const posts = rows as MysqlRow[]
+  const [countRows] = await conn.execute(countQuery)
+  const totalPosts = Number((countRows as MysqlRow[])[0]?.total || 0)
+  
+  // Apply user limits
+  const effectiveLimit = options.limit || totalPosts
+  const effectiveOffset = options.offset || 0
+  const actualTotal = Math.min(effectiveLimit, totalPosts - effectiveOffset)
 
   if (options.dryRun) {
+    const typeQuery = `
+      SELECT p.type, COUNT(*) as count
+      FROM posts p
+      WHERE p.published_at IS NOT NULL
+      ${options.offset ? `AND p.id >= (SELECT id FROM posts WHERE published_at IS NOT NULL ORDER BY id LIMIT 1 OFFSET ${options.offset})` : ''}
+      GROUP BY p.type
+      ${options.limit ? `LIMIT ${options.limit}` : ''}
+    `
+    const [typeRows] = await conn.execute(typeQuery)
     const types: Record<string, number> = {}
 
-    for (const post of posts) {
-      const key = post.type || 'unknown'
-      types[key] = (types[key] || 0) + 1
+    for (const row of typeRows as MysqlRow[]) {
+      types[row.type || 'unknown'] = Number(row.count || 0)
     }
 
     summary.source.typeDistribution = types
 
     await emit(onProgress, {
       step: 'posts',
-      message: `Dry run: ${posts.length} مطلب آماده انتقال است`,
-      progressCurrent: posts.length,
-      progressTotal: posts.length,
+      message: `Dry run: ${actualTotal} مطلب آماده انتقال است`,
+      progressCurrent: actualTotal,
+      progressTotal: actualTotal,
       summary: {
         source: summary.source,
       },
@@ -556,23 +561,42 @@ async function migratePosts(params: {
   }
 
   let migrated = 0
+  const BATCH_SIZE = 100
+  let currentOffset = effectiveOffset
 
-  for (const post of posts) {
-    // Emit progress to check for cancellation
-    if (migrated % 50 === 0 && migrated > 0) {
+  while (migrated < actualTotal) {
+    const batchQuery = `
+      SELECT p.id, p.titre, p.main_text, p.summary, p.type,
+             p.reading_time, p.is_hot, p.source,
+             p.published_at, p.created_at, p.updated_at,
+             COALESCE(p.views, 0) as views,
+             p.related_brand, p.related_product, p.comment
+      FROM posts p
+      WHERE p.published_at IS NOT NULL
+      ORDER BY p.id ASC
+      LIMIT ${BATCH_SIZE} OFFSET ${currentOffset}
+    `
+
+    const [rows] = await conn.execute(batchQuery)
+    const posts = rows as MysqlRow[]
+
+    if (posts.length === 0) break
+
+    for (const post of posts) {
+      if (migrated >= actualTotal) break
+
       await emit(onProgress, {
         step: 'posts',
-        message: `${migrated} از ${posts.length} مطلب منتقل شد`,
+        message: `${migrated} از ${actualTotal} مطلب منتقل شد`,
         progressCurrent: migrated,
-        progressTotal: posts.length,
+        progressTotal: actualTotal,
         summary: {
           imported: summary.imported,
           errors: summary.errors,
         },
       })
-    }
 
-    try {
+      try {
       const postType = resolvePostType(post.type)
       const title = post.titre || `پست ${post.id}`
       const slug = slugify(title) || `post-${post.id}`
@@ -715,21 +739,24 @@ async function migratePosts(params: {
       migrated++
       summary.imported.posts = migrated
 
-      if (migrated % 250 === 0 || migrated === posts.length) {
-        await emit(onProgress, {
-          step: 'posts',
-          message: `${migrated} از ${posts.length} مطلب منتقل شد`,
-          progressCurrent: migrated,
-          progressTotal: posts.length,
-          summary: {
-            imported: summary.imported,
-            errors: summary.errors,
-          },
-        })
+      } catch {
+        summary.errors.posts++
       }
-    } catch {
-      summary.errors.posts++
     }
+
+    currentOffset += BATCH_SIZE
+
+    // Emit progress after each batch
+    await emit(onProgress, {
+      step: 'posts',
+      message: `${migrated} از ${actualTotal} مطلب منتقل شد`,
+      progressCurrent: migrated,
+      progressTotal: actualTotal,
+      summary: {
+        imported: summary.imported,
+        errors: summary.errors,
+      },
+    })
   }
 }
 

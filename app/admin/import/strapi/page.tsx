@@ -14,6 +14,7 @@ import {
   Save,
   ShieldCheck,
   TerminalSquare,
+  XCircle,
 } from 'lucide-react'
 
 type ImportRunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
@@ -186,6 +187,7 @@ export default function StrapiImportPage() {
   const [testingConnection, setTestingConnection] = useState(false)
   const [startingImport, setStartingImport] = useState(false)
   const [refreshingRun, setRefreshingRun] = useState(false)
+  const [cancellingRun, setCancellingRun] = useState(false)
   const [passwordSaved, setPasswordSaved] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -430,6 +432,38 @@ export default function StrapiImportPage() {
       setError(err instanceof Error ? err.message : 'خطا در شروع درون‌ریزی')
     } finally {
       setStartingImport(false)
+    }
+  }
+
+  async function handleCancelImport() {
+    if (!selectedRunId) return
+
+    setCancellingRun(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const res = await fetch(`/api/imports/strapi/${selectedRunId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'لغو درون‌ریزی ناموفق بود')
+      }
+
+      setSuccess('درون‌ریزی با موفقیت لغو شد')
+      await loadRuns(false)
+      if (selectedRunId) {
+        await loadRunDetails(selectedRunId, false)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'خطا در لغو درون‌ریزی')
+    } finally {
+      setCancellingRun(false)
     }
   }
 
@@ -729,17 +763,33 @@ export default function StrapiImportPage() {
               </div>
 
               {selectedRunId && (
-                <button
-                  onClick={() => void loadRunDetails(selectedRunId, false)}
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-50"
-                >
-                  {refreshingRun ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
+                <div className="flex items-center gap-2">
+                  {isSelectedRunRunning && (
+                    <button
+                      onClick={() => void handleCancelImport()}
+                      disabled={cancellingRun}
+                      className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                    >
+                      {cancellingRun ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <XCircle className="h-4 w-4" />
+                      )}
+                      لغو
+                    </button>
                   )}
-                  بروزرسانی
-                </button>
+                  <button
+                    onClick={() => void loadRunDetails(selectedRunId, false)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-50"
+                  >
+                    {refreshingRun ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    بروزرسانی
+                  </button>
+                </div>
               )}
             </div>
 
