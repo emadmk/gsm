@@ -954,11 +954,17 @@ async function migrateComments(params: {
     return
   }
 
+  // Pre-load all article IDs into a Set for O(1) existence checks
+  const articleIdRows = await prisma.article.findMany({
+    select: { id: true },
+  })
+  const articleIdSet = new Set(articleIdRows.map((row) => row.id))
+
   let migrated = 0
   const COMMENT_BATCH_SIZE = 500
-   let commentOffset = effectiveCommentOffset
+  let commentOffset = effectiveCommentOffset
 
-  while (commentOffset < totalComments) {
+  while (commentOffset < totalComments + effectiveCommentOffset) {
     const [rows] = await conn.execute(
       `SELECT ${selectColumns.join(', ')}
        FROM comments_comment
@@ -969,6 +975,9 @@ async function migrateComments(params: {
 
     const comments = rows as MysqlRow[]
     if (comments.length === 0) break
+
+    // Build batch of upsert operations
+    const upsertOps: ReturnType<typeof prisma.comment.upsert>[] = []
 
     for (const comment of comments) {
       let postId: number | null = null
@@ -985,11 +994,7 @@ async function migrateComments(params: {
         continue
       }
 
-      const article = await prisma.article.findFirst({
-        where: { id: postId },
-      })
-
-      if (!article) {
+      if (!articleIdSet.has(postId)) {
         summary.skipped.commentsWithoutArticle++
         continue
       }
@@ -998,32 +1003,52 @@ async function migrateComments(params: {
         (authorNameColumn ? comment[authorNameColumn] : null) || 'ناشناس'
       const authorEmail = authorEmailColumn ? comment[authorEmailColumn] : null
 
-      try {
-        await prisma.comment.upsert({
+      const isApproved = hasApproval ? comment.approval_status === 'APPROVED' : !comment.blocked
+      const isAdmin = hasIsAdmin ? comment.is_admin_comment === 1 : false
+
+      upsertOps.push(
+        prisma.comment.upsert({
           where: { strapiId: comment.id },
           update: {
             content: comment.content,
             authorName,
             authorEmail,
-            isApproved: hasApproval ? comment.approval_status === 'APPROVED' : !comment.blocked,
-            isAdmin: hasIsAdmin ? comment.is_admin_comment === 1 : false,
+            isApproved,
+            isAdmin,
           },
           create: {
             strapiId: comment.id,
-            articleId: article.id,
+            articleId: postId,
             content: comment.content,
             authorName,
             authorEmail,
-            isApproved: hasApproval ? comment.approval_status === 'APPROVED' : !comment.blocked,
-            isAdmin: hasIsAdmin ? comment.is_admin_comment === 1 : false,
+            isApproved,
+            isAdmin,
             createdAt: comment.created_at || new Date(),
           },
-        })
+        }),
+      )
+    }
 
-        migrated++
+    // Execute upserts in small transactional sub-batches to limit memory
+    const TX_CHUNK = 50
+    for (let i = 0; i < upsertOps.length; i += TX_CHUNK) {
+      const chunk = upsertOps.slice(i, i + TX_CHUNK)
+      try {
+        await prisma.$transaction(chunk)
+        migrated += chunk.length
         summary.imported.comments = migrated
       } catch {
-        summary.errors.comments++
+        // Fallback: try one-by-one for this chunk so partial failures don't lose entire batch
+        for (const op of chunk) {
+          try {
+            await op
+            migrated++
+            summary.imported.comments = migrated
+          } catch {
+            summary.errors.comments++
+          }
+        }
       }
     }
 
@@ -1042,29 +1067,68 @@ async function migrateComments(params: {
     })
   }
 
+  // --- Thread linking (batch approach) ---
   try {
     const [threadLinks] = await conn.execute(
       'SELECT comment_id, inv_comment_id FROM comments_comment_thread_of_links'
     )
 
-    for (const link of threadLinks as MysqlRow[]) {
-      try {
-        const child = await prisma.comment.findUnique({
-          where: { strapiId: link.comment_id },
-        })
-        const parent = await prisma.comment.findUnique({
-          where: { strapiId: link.inv_comment_id },
-        })
+    const links = threadLinks as MysqlRow[]
+    if (links.length > 0) {
+      // Collect all unique strapiIds from links
+      const linkStrapiIds = new Set<number>()
+      for (const link of links) {
+        linkStrapiIds.add(link.comment_id)
+        linkStrapiIds.add(link.inv_comment_id)
+      }
 
-        if (child && parent) {
-          await prisma.comment.update({
-            where: { id: child.id },
-            data: { parentId: parent.id },
-          })
-          summary.imported.threadedComments++
+      // Load all needed comments in one query
+      const linkedComments = await prisma.comment.findMany({
+        where: { strapiId: { in: Array.from(linkStrapiIds) } },
+        select: { id: true, strapiId: true },
+      })
+
+      const strapiIdToId = new Map<number, number>()
+      for (const c of linkedComments) {
+        if (c.strapiId != null) {
+          strapiIdToId.set(c.strapiId, c.id)
         }
-      } catch {
-        // Skip invalid thread links.
+      }
+
+      // Batch update parentIds
+      const updateOps: ReturnType<typeof prisma.comment.update>[] = []
+      for (const link of links) {
+        const childId = strapiIdToId.get(link.comment_id)
+        const parentId = strapiIdToId.get(link.inv_comment_id)
+
+        if (childId && parentId) {
+          updateOps.push(
+            prisma.comment.update({
+              where: { id: childId },
+              data: { parentId },
+            }),
+          )
+        }
+      }
+
+      // Execute thread updates in transactional sub-batches
+      const THREAD_CHUNK = 100
+      for (let i = 0; i < updateOps.length; i += THREAD_CHUNK) {
+        const chunk = updateOps.slice(i, i + THREAD_CHUNK)
+        try {
+          await prisma.$transaction(chunk)
+          summary.imported.threadedComments += chunk.length
+        } catch {
+          // Fallback: one-by-one
+          for (const op of chunk) {
+            try {
+              await op
+              summary.imported.threadedComments++
+            } catch {
+              // Skip invalid thread links.
+            }
+          }
+        }
       }
     }
   } catch {

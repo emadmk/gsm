@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, X, Loader2, Search } from 'lucide-react'
-import MediaUpload from '@/components/admin/MediaUpload'
+ import { useEffect, useState, useCallback } from 'react'
+ import { Plus, Pencil, Trash2, X, Loader2, Search } from 'lucide-react'
+ import MediaUpload from '@/components/admin/MediaUpload'
+ import { getImageUrl } from '@/lib/utils'
 
 interface Brand {
   id: number
@@ -349,4 +350,3 @@ export default function BrandsPage() {
     </div>
   )
 }
- import { getImageUrl } from '@/lib/utils'
