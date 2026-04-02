@@ -193,6 +193,7 @@ export default function MediaLibraryPage() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [syncing, setSyncing] = useState(false)
    const [syncPrefix, setSyncPrefix] = useState('media/')
+  const [cleaningDuplicates, setCleaningDuplicates] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -362,10 +363,11 @@ export default function MediaLibraryPage() {
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'خطا در همگام‌سازی')
-        addToast(
-          `${toPersianNum(data.synced)} فایل جدید همگام‌سازی شد (${toPersianNum(data.skipped)} تکراری)`,
-          'success'
-        )
+        let msg = `${toPersianNum(data.synced)} فایل جدید همگام‌سازی شد (${toPersianNum(data.skipped)} موجود)`
+        if (data.duplicatesRemoved > 0) {
+          msg += ` — ${toPersianNum(data.duplicatesRemoved)} تکراری حذف شد`
+        }
+        addToast(msg, 'success')
         setPage(1)
         fetchMedia()
       } catch (err) {
@@ -374,8 +376,34 @@ export default function MediaLibraryPage() {
         setSyncing(false)
       }
     },
-    [addToast, fetchMedia]
-  )
+   [addToast, fetchMedia]
+ )
+
+  const cleanupDuplicates = useCallback(async () => {
+    setCleaningDuplicates(true)
+    try {
+      const checkRes = await fetch('/api/media/cleanup-duplicates')
+      const checkData = await checkRes.json()
+      if (checkData.totalDuplicateRecords === 0) {
+        addToast('هیچ رکورد تکراری یافت نشد ✓', 'info')
+        return
+      }
+      if (!confirm(`${checkData.totalDuplicateRecords} رکورد تکراری یافت شد. حذف شوند؟`)) return
+      const res = await fetch('/api/media/cleanup-duplicates', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        addToast(data.message, 'success')
+        setPage(1)
+        fetchMedia()
+      } else {
+        addToast('خطا در پاکسازی', 'error')
+      }
+    } catch {
+      addToast('خطا در ارتباط با سرور', 'error')
+    } finally {
+      setCleaningDuplicates(false)
+    }
+  }, [addToast, fetchMedia])
 
   // ─── Drag & drop ───
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -567,8 +595,20 @@ export default function MediaLibraryPage() {
               <RefreshCw className="w-4 h-4" />
             )}
             {syncing ? 'در حال همگام‌سازی...' : 'همگام‌سازی از S3'}
+         </button>
+          </div>
+          <button
+            onClick={() => void cleanupDuplicates()}
+            disabled={cleaningDuplicates}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 disabled:opacity-50 transition-colors"
+          >
+            {cleaningDuplicates ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4" />
+            )}
+            پاکسازی تکراری‌ها
           </button>
-           </div>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}

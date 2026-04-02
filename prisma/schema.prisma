@@ -365,12 +365,11 @@ model Media {
   height       Int?
   altText      String?
   url          String
-  path         String
+  path         String   @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@index([mimeType])
   @@index([createdAt])
   @@index([filename])
-  @@index([path])
 }
