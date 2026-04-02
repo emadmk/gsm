@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import {
   Grid3X3,
   List,
@@ -129,6 +129,46 @@ function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id
   )
 }
 
+// ─── Lazy Image Component ───────────────────────────────────
+function LazyImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [isInView, setIsInView] = useState(false)
+  const imgRef = useRef<HTMLImageElement>(null)
+
+  useEffect(() => {
+    if (!imgRef.current) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsInView(true)
+            observer.disconnect()
+          }
+        })
+      },
+      { rootMargin: '50px' }
+    )
+
+    observer.observe(imgRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div ref={imgRef} className={className}>
+      {isInView && (
+        <img
+          src={src}
+          alt={alt}
+          onLoad={() => setIsLoaded(true)}
+          className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+        />
+      )}
+      {!isLoaded && <div className="w-full h-full bg-gray-100 animate-pulse" />}
+    </div>
+  )
+}
+
 // ─── Main Component ──────────────────────────────────────────
 export default function MediaLibraryPage() {
   // State
@@ -154,7 +194,7 @@ export default function MediaLibraryPage() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const toastIdRef = useRef(0)
-
+  const observerRef = useRef<IntersectionObserver | null>(null)
   // ─── Toast helpers ───
   const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
     const id = ++toastIdRef.current
@@ -586,12 +626,7 @@ export default function MediaLibraryPage() {
                 {/* Preview */}
                 <div className="aspect-square bg-gray-50 relative" onClick={() => openDetail(item)}>
                   {isImage(item.mimeType) ? (
-                    <img
-                      src={item.url}
-                      alt={item.altText || item.originalName}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
+                    <LazyImage src={item.url} alt={item.altText || item.originalName} className="w-full h-full" />
                   ) : isVideo(item.mimeType) ? (
                     <div className="w-full h-full flex items-center justify-center bg-gray-100">
                       <Film className="w-10 h-10 text-gray-400" />
@@ -656,12 +691,7 @@ export default function MediaLibraryPage() {
                     <td className="py-2 px-4" onClick={() => openDetail(item)}>
                       <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
                         {isImage(item.mimeType) ? (
-                          <img
-                            src={item.url}
-                            alt=""
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
+                          <LazyImage src={item.url} alt="" className="w-full h-full" />
                         ) : isVideo(item.mimeType) ? (
                           <Film className="w-5 h-5 text-gray-400" />
                         ) : (

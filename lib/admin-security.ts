@@ -42,7 +42,18 @@ export function isTrustedMutationOrigin(
   const normalizedRequestOrigin = normalizeOrigin(requestOrigin)
 
   if (originHeader) {
-    return normalizeOrigin(originHeader) === normalizedRequestOrigin
+    const normalizedOrigin = normalizeOrigin(originHeader)
+    // Allow both exact match and localhost/IP variations
+    if (normalizedOrigin === normalizedRequestOrigin) return true
+    
+    // Extract hostname without protocol for IP/localhost comparison
+    try {
+      const reqUrl = new URL(normalizedRequestOrigin)
+      const originUrl = new URL(normalizedOrigin)
+      return reqUrl.hostname === originUrl.hostname && reqUrl.port === originUrl.port
+    } catch {
+      return false
+    }
   }
 
   if (refererHeader) {

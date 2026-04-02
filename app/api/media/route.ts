@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = request.nextUrl
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
-    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '40')))
+    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '60')))
     const search = searchParams.get('search') || ''
     const type = searchParams.get('type') || 'all'
     const sort = searchParams.get('sort') || 'date-desc'
