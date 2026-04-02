@@ -113,6 +113,7 @@ interface FormState {
   limit: string
   offset: string
   commentLimit: string
+   commentOffset: string
 }
 
 const defaultForm: FormState = {
@@ -127,6 +128,7 @@ const defaultForm: FormState = {
   limit: '',
   offset: '',
   commentLimit: '100000',
+   commentOffset: '',
 }
 
 function parseOptionalNumber(value: string) {
@@ -324,6 +326,7 @@ export default function StrapiImportPage() {
       limit: parseOptionalNumber(form.limit),
       offset: parseOptionalNumber(form.offset),
       commentLimit: parseOptionalNumber(form.commentLimit),
+       commentOffset: parseOptionalNumber(form.commentOffset),
     }
   }
 
@@ -666,6 +669,20 @@ export default function StrapiImportPage() {
                   dir="ltr"
                 />
               </div>
+
+               <div className="md:col-span-2">
+                 <label className="mb-1 block text-sm font-medium text-gray-700">
+                   Comment Offset
+                   <span className="mr-2 text-xs text-gray-400">اختیاری</span>
+                 </label>
+                 <input
+                   value={form.commentOffset}
+                   onChange={(event) => setForm({ ...form, commentOffset: event.target.value })}
+                   className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                   placeholder="0"
+                   dir="ltr"
+                 />
+               </div>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">

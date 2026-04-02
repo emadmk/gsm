@@ -16,6 +16,7 @@ export interface StrapiImportOptions {
   limit?: number
   offset?: number
   commentLimit?: number
+   commentOffset?: number
 }
 
 export interface StrapiSourceStats {
@@ -41,6 +42,7 @@ export interface StrapiImportSummary {
     limit?: number
     offset?: number
     commentLimit: number
+     commentOffset?: number
   }
   source: StrapiSourceStats & {
     typeDistribution?: Record<string, number>
@@ -108,6 +110,7 @@ function normalizeOptions(options?: StrapiImportOptions) {
       options?.commentLimit && options.commentLimit > 0
         ? options.commentLimit
         : DEFAULT_COMMENT_LIMIT,
+     commentOffset: options?.commentOffset && options.commentOffset > 0 ? options.commentOffset : undefined,
   }
 }
 
@@ -255,11 +258,43 @@ function resolvePostType(value: string | null | undefined) {
    })
  
    let brands: MysqlRow[] = []
-   try {
+  try {
+     // Discover the brand table name from MySQL
+     const [tables] = await conn.execute(
+       "SHOW TABLES LIKE '%brand%'"
+     )
+     const tableList = (tables as MysqlRow[]).map((row) => Object.values(row)[0] as string)
+     const brandTable = tableList.find(
+       (t) => t === 'brands' || t === 'brand' || (!t.includes('link') && !t.includes('component'))
+     )
+
+     if (!brandTable) throw new Error('Brand table not found')
+
+     const [cols] = await conn.execute(`SHOW COLUMNS FROM \`${brandTable}\``)
+     const colNames = (cols as MysqlRow[]).map((c) => c.Field as string)
+
+     const nameCol = colNames.includes('name') ? 'name' : colNames.includes('title') ? 'title' : null
+     const nameEnCol = colNames.includes('name_en') ? 'name_en' : colNames.includes('nameEn') ? 'nameEn' : null
+     const slugCol = colNames.includes('slug') ? 'slug' : null
+     const priorityCol = colNames.includes('priority') ? 'priority' : colNames.includes('order') ? '`order`' : null
+
+     const selectCols = [
+       'id',
+       nameCol ? `\`${nameCol}\` as name` : `'unknown' as name`,
+       nameEnCol ? `\`${nameEnCol}\` as name_en` : 'NULL as name_en',
+       slugCol ? `\`${slugCol}\` as slug` : 'NULL as slug',
+       priorityCol ? `${priorityCol} as priority` : '0 as priority',
+     ].join(', ')
+
      const [rows] = await conn.execute(
-       'SELECT id, name, name_en, slug, priority FROM brands ORDER BY id'
+       `SELECT ${selectCols} FROM \`${brandTable}\` ORDER BY id`
      )
      brands = rows as MysqlRow[]
+
+     await emit(onProgress, {
+       step: 'brands',
+       message: `جدول ${brandTable} شناسایی شد (ستون‌ها: ${colNames.join(', ')})`,
+     })
    } catch {
      await emit(onProgress, {
        step: 'brands',
@@ -282,14 +317,14 @@ function resolvePostType(value: string | null | undefined) {
      const brandSlug = slugify(brand.name_en || brand.name || '') || `brand-${brand.id}`
  
      let logo: string | null = null
-     try {
-       const [logoRows] = await conn.execute(
-         `SELECT f.url FROM files f
-          INNER JOIN files_related_morphs frm ON frm.file_id = f.id
-          WHERE frm.related_id = ? AND frm.related_type = 'api::brand.brand'
-          LIMIT 1`,
-         [brand.id]
-       )
+    try {
+      const [logoRows] = await conn.execute(
+        `SELECT f.url FROM files f
+         INNER JOIN files_related_morphs frm ON frm.file_id = f.id
+          WHERE frm.related_id = ? AND frm.related_type LIKE '%brand%'
+         LIMIT 1`,
+        [brand.id]
+      )
        if ((logoRows as MysqlRow[]).length > 0) {
          const url = (logoRows as MysqlRow[])[0].url
          logo = url?.startsWith('http') ? url : `${s3BaseUrl}${url}`
@@ -913,6 +948,7 @@ async function migrateComments(params: {
     Number((commentCountRows as MysqlRow[])[0]?.c || 0),
     options.commentLimit
   )
+   const effectiveCommentOffset = options.commentOffset || 0
 
   if (options.dryRun) {
     return
@@ -920,7 +956,7 @@ async function migrateComments(params: {
 
   let migrated = 0
   const COMMENT_BATCH_SIZE = 500
-  let commentOffset = 0
+   let commentOffset = effectiveCommentOffset
 
   while (commentOffset < totalComments) {
     const [rows] = await conn.execute(

@@ -37,6 +37,7 @@ export const strapiImportOptionsSchema = z.object({
   limit: optionalNumberField,
   offset: optionalNumberField,
   commentLimit: optionalNumberField,
+   commentOffset: optionalNumberField,
 })
 
 export const strapiImportRequestSchema = z.object({
