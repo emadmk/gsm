@@ -240,6 +240,96 @@ function resolvePostType(value: string | null | undefined) {
   return 'NEWS'
 }
 
+ async function migrateBrands(params: {
+   conn: mysql.Connection
+   prisma: PrismaClient
+   summary: StrapiImportSummary
+   dryRun: boolean
+   s3BaseUrl: string
+   onProgress?: RunImportParams['onProgress']
+ }) {
+   const { conn, prisma, summary, dryRun, s3BaseUrl, onProgress } = params
+   await emit(onProgress, {
+     step: 'brands',
+     message: 'در حال بررسی و انتقال برندها',
+   })
+ 
+   let brands: MysqlRow[] = []
+   try {
+     const [rows] = await conn.execute(
+       'SELECT id, name, name_en, slug, priority FROM brands ORDER BY id'
+     )
+     brands = rows as MysqlRow[]
+   } catch {
+     await emit(onProgress, {
+       step: 'brands',
+       message: 'جدول برندها در منبع یافت نشد، این مرحله رد شد',
+     })
+     return
+   }
+ 
+   if (dryRun) {
+     await emit(onProgress, {
+       step: 'brands',
+       message: `${brands.length} برند شناسایی شد`,
+     })
+     return
+   }
+ 
+   let migrated = 0
+ 
+   for (const brand of brands) {
+     const brandSlug = slugify(brand.name_en || brand.name || '') || `brand-${brand.id}`
+ 
+     let logo: string | null = null
+     try {
+       const [logoRows] = await conn.execute(
+         `SELECT f.url FROM files f
+          INNER JOIN files_related_morphs frm ON frm.file_id = f.id
+          WHERE frm.related_id = ? AND frm.related_type = 'api::brand.brand'
+          LIMIT 1`,
+         [brand.id]
+       )
+       if ((logoRows as MysqlRow[]).length > 0) {
+         const url = (logoRows as MysqlRow[])[0].url
+         logo = url?.startsWith('http') ? url : `${s3BaseUrl}${url}`
+       }
+     } catch {
+       // logo not found, continue
+     }
+ 
+     try {
+       await prisma.brand.upsert({
+         where: { strapiId: brand.id },
+         update: {
+           name: brand.name || `Brand ${brand.id}`,
+           nameEn: brand.name_en || null,
+           slug: brandSlug,
+           logo,
+           priority: parseInt(String(brand.priority || 0), 10) || 0,
+         },
+         create: {
+           strapiId: brand.id,
+           name: brand.name || `Brand ${brand.id}`,
+           nameEn: brand.name_en || null,
+           slug: brandSlug,
+           logo,
+           priority: parseInt(String(brand.priority || 0), 10) || 0,
+         },
+       })
+       migrated++
+     } catch (err) {
+       summary.errors.categories++
+       console.error(`Error migrating brand ${brand.id}:`, err)
+     }
+   }
+ 
+   await emit(onProgress, {
+     step: 'brands',
+     message: `${migrated} برند منتقل شد`,
+   })
+ }
+ 
 async function migrateTags(params: {
   conn: mysql.Connection
   prisma: PrismaClient
@@ -1014,6 +1104,15 @@ export async function runStrapiImport({
       onProgress,
     })
 
+     await migrateBrands({
+       conn,
+       prisma,
+       summary,
+       dryRun: normalizedOptions.dryRun,
+       s3BaseUrl,
+       onProgress,
+     })
+ 
     await migrateCategories({
       conn,
       prisma,

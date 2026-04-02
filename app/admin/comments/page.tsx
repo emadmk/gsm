@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+ import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import {
   Check,
@@ -69,39 +69,39 @@ export default function CommentsPage() {
     params.set('limit', ITEMS_PER_PAGE.toString())
     if (filter === 'pending') params.set('isApproved', 'false')
     if (filter === 'approved') params.set('isApproved', 'true')
+     if (debouncedSearch) params.set('search', debouncedSearch)
 
     try {
       const res = await fetch(`/api/comments?${params}`)
       const data = await res.json()
 
-      // Support both paginated and array responses
-      if (Array.isArray(data)) {
-        const filtered = data.filter(
-          (c: Comment & { parentId?: number | null }) => !c.parentId
-        )
-        const startIdx = (page - 1) * ITEMS_PER_PAGE
-        const paged = filtered.slice(startIdx, startIdx + ITEMS_PER_PAGE)
-        setComments(paged)
-        setTotal(filtered.length)
-        setTotalPages(Math.ceil(filtered.length / ITEMS_PER_PAGE))
-      } else {
-        const paginated = data as PaginatedResponse
-        setComments(paginated.comments || [])
-        setTotal(paginated.total || 0)
-        setTotalPages(paginated.totalPages || 0)
-      }
+       const paginated = data as PaginatedResponse
+       setComments(paginated.comments || [])
+       setTotal(paginated.total || 0)
+       setTotalPages(paginated.totalPages || 0)
     } catch {
       setComments([])
     } finally {
       setLoading(false)
     }
-  }, [filter, page])
+   }, [filter, page, debouncedSearch])
 
   useEffect(() => {
     fetchComments()
   }, [fetchComments])
 
-  // Reset page when filter changes
+   // Debounce search
+   useEffect(() => {
+     if (debounceRef.current) clearTimeout(debounceRef.current)
+     debounceRef.current = setTimeout(() => {
+       setDebouncedSearch(searchQuery)
+       setPage(1)
+     }, 400)
+     return () => {
+       if (debounceRef.current) clearTimeout(debounceRef.current)
+     }
+   }, [searchQuery])
+
   useEffect(() => {
     setPage(1)
   }, [filter])
@@ -256,10 +256,7 @@ export default function CommentsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {comments.filter((comment) =>
-            comment.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            comment.authorName.toLowerCase().includes(searchQuery.toLowerCase())
-          ).map((comment) => (
+           {comments.map((comment) => (
             <div
               key={comment.id}
               className={`bg-white rounded-2xl border overflow-hidden transition-all duration-200 hover:shadow-md ${
@@ -509,3 +506,5 @@ export default function CommentsPage() {
     </div>
   )
 }
+   const [debouncedSearch, setDebouncedSearch] = useState('')
+   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)

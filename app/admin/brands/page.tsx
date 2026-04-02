@@ -22,6 +22,7 @@ export default function BrandsPage() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
+   const [error, setError] = useState<string | null>(null)
 
   const [form, setForm] = useState({
     name: '',
@@ -35,10 +36,15 @@ export default function BrandsPage() {
   const fetchBrands = useCallback(async () => {
     try {
       const res = await fetch('/api/brands')
+       if (!res.ok) {
+         const data = await res.json().catch(() => ({}))
+         throw new Error(data.error || `خطا: ${res.status}`)
+       }
       const data = await res.json()
       setBrands(Array.isArray(data) ? data : [])
+       setError(null)
     } catch {
-      // error
+       setError('خطا در دریافت برندها. لطفاً صفحه را بارگذاری مجدد کنید.')
     } finally {
       setLoading(false)
     }
@@ -98,11 +104,15 @@ export default function BrandsPage() {
       })
 
       if (res.ok) {
+         setError(null)
         resetForm()
         fetchBrands()
+       } else {
+         const data = await res.json().catch(() => ({}))
+         setError(data.error || 'خطا در ذخیره برند')
       }
     } catch {
-      // error
+       setError('خطا در ارتباط با سرور')
     } finally {
       setSaving(false)
     }
@@ -149,6 +159,15 @@ export default function BrandsPage() {
         </button>
       </div>
 
+       {error && (
+         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 flex items-center justify-between">
+           <span>{error}</span>
+           <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">
+             <X className="w-4 h-4" />
+           </button>
+         </div>
+       )}
+ 
       {/* Search */}
       <div className="relative">
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -283,7 +302,7 @@ export default function BrandsPage() {
                     {brand.logo ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={brand.logo}
+                         src={getImageUrl(brand.logo)}
                         alt={brand.name}
                         className="w-8 h-8 rounded object-contain bg-gray-50"
                       />
@@ -330,3 +349,4 @@ export default function BrandsPage() {
     </div>
   )
 }
+ import { getImageUrl } from '@/lib/utils'
