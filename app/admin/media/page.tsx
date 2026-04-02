@@ -25,6 +25,7 @@ import {
   Settings,
   AlertCircle,
   CloudUpload,
+  RefreshCw,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -190,9 +191,21 @@ export default function MediaLibraryPage() {
   const [deleting, setDeleting] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [syncing, setSyncing] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // S3 Browser state
+  const [activeTab, setActiveTab] = useState<ActiveTab>('library')
+  const [s3Prefix, setS3Prefix] = useState('')
+  const [s3Folders, setS3Folders] = useState<S3Folder[]>([])
+  const [s3Files, setS3Files] = useState<S3File[]>([])
+  const [s3TotalFiles, setS3TotalFiles] = useState(0)
+  const [s3Page, setS3Page] = useState(1)
+  const [s3TotalPages, setS3TotalPages] = useState(1)
+  const [s3Loading, setS3Loading] = useState(false)
+
   const toastIdRef = useRef(0)
   const observerRef = useRef<IntersectionObserver | null>(null)
   // ─── Toast helpers ───
@@ -246,6 +259,51 @@ export default function MediaLibraryPage() {
     fetchMedia()
   }, [fetchMedia])
 
+  // ─── S3 Browse ───
+  const fetchS3Browse = useCallback(
+    async (prefix: string, browsePageNum = 1) => {
+      setS3Loading(true)
+      try {
+        const params = new URLSearchParams({
+          prefix,
+          page: String(browsePageNum),
+          limit: '60',
+        })
+        const res = await fetch(`/api/media/browse?${params}`)
+        if (!res.ok) throw new Error('Fetch failed')
+        const data: S3BrowseResponse = await res.json()
+        setS3Folders(data.folders)
+        setS3Files(data.files)
+        setS3TotalFiles(data.totalFiles)
+        setS3Page(data.page)
+        setS3TotalPages(data.totalPages)
+      } catch {
+        addToast('خطا در مرور فضای ذخیره‌سازی', 'error')
+      } finally {
+        setS3Loading(false)
+      }
+    },
+    [addToast]
+  )
+
+  useEffect(() => {
+    if (activeTab === 'browser') {
+      fetchS3Browse(s3Prefix, s3Page)
+    }
+  }, [activeTab, s3Prefix, s3Page, fetchS3Browse])
+
+  const navigateToFolder = useCallback((prefix: string) => {
+    setS3Prefix(prefix)
+    setS3Page(1)
+  }, [])
+
+  const navigateUp = useCallback(() => {
+    const parts = s3Prefix.replace(/\/$/, '').split('/')
+    parts.pop()
+    setS3Prefix(parts.length > 0 ? parts.join('/') + '/' : '')
+    setS3Page(1)
+  }, [s3Prefix])
+
   // ─── Upload ───
   const uploadFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -287,6 +345,32 @@ export default function MediaLibraryPage() {
         addToast(`${toPersianNum(uploaded)} فایل با موفقیت آپلود شد`, 'success')
         setPage(1)
         fetchMedia()
+      }
+    },
+    [addToast, fetchMedia]
+  )
+
+  const syncFromStorage = useCallback(
+    async (prefix = '') => {
+      setSyncing(true)
+      try {
+        const res = await fetch('/api/media/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prefix }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'خطا در همگام‌سازی')
+        addToast(
+          `${toPersianNum(data.synced)} فایل جدید همگام‌سازی شد (${toPersianNum(data.skipped)} تکراری)`,
+          'success'
+        )
+        setPage(1)
+        fetchMedia()
+      } catch (err) {
+        addToast(err instanceof Error ? err.message : 'خطا در همگام‌سازی', 'error')
+      } finally {
+        setSyncing(false)
       }
     },
     [addToast, fetchMedia]
@@ -464,6 +548,18 @@ export default function MediaLibraryPage() {
             تنظیمات S3
           </Link>
           <button
+            onClick={() => void syncFromStorage()}
+            disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+          >
+            {syncing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            {syncing ? 'در حال همگام‌سازی...' : 'همگام‌سازی از S3'}
+          </button>
+          <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
             className="flex items-center gap-2 px-5 py-2.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
@@ -489,6 +585,31 @@ export default function MediaLibraryPage() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+        <button
+          onClick={() => setActiveTab('library')}
+          className={`px-4 py-2 text-sm rounded-md transition-colors ${
+            activeTab === 'library'
+              ? 'bg-white text-gray-800 shadow-sm font-medium'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          کتابخانه
+        </button>
+        <button
+          onClick={() => setActiveTab('browser')}
+          className={`px-4 py-2 text-sm rounded-md transition-colors ${
+            activeTab === 'browser'
+              ? 'bg-white text-gray-800 shadow-sm font-medium'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          مرورگر S3
+        </button>
+      </div>
+
+      {activeTab === 'library' && <>
       {/* Toolbar */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
@@ -769,6 +890,162 @@ export default function MediaLibraryPage() {
       )}
 
       {/* Detail Panel / Modal */}
+      </>}
+
+      {activeTab === 'browser' && (
+        <div className="space-y-4">
+          {/* Breadcrumb */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3">
+            <div className="flex items-center gap-2 text-sm">
+              <button
+                onClick={() => navigateToFolder('')}
+                className={`px-2 py-1 rounded transition-colors ${
+                  s3Prefix === '' ? 'text-blue-600 font-medium' : 'text-gray-600 hover:text-blue-600'
+                }`}
+              >
+                🪣 root
+              </button>
+              {s3Prefix && s3Prefix.replace(/\/$/, '').split('/').map((part, index, arr) => {
+                const pathUpTo = arr.slice(0, index + 1).join('/') + '/'
+                return (
+                  <span key={pathUpTo} className="flex items-center gap-2">
+                    <ChevronLeft className="w-3 h-3 text-gray-400" />
+                    <button
+                      onClick={() => navigateToFolder(pathUpTo)}
+                      className={`px-2 py-1 rounded transition-colors ${
+                        pathUpTo === s3Prefix ? 'text-blue-600 font-medium' : 'text-gray-600 hover:text-blue-600'
+                      }`}
+                    >
+                      {part}
+                    </button>
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+
+          {s3Loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            </div>
+          ) : (
+            <>
+              {/* Folders */}
+              {s3Folders.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500 mb-2">پوشه‌ها</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    {s3Prefix && (
+                      <button
+                        onClick={navigateUp}
+                        className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                      >
+                        <span className="text-3xl">⬆️</span>
+                        <span className="text-xs text-gray-600 truncate w-full text-center">..</span>
+                      </button>
+                    )}
+                    {s3Folders.map((folder) => (
+                      <button
+                        key={folder.prefix}
+                        onClick={() => navigateToFolder(folder.prefix)}
+                        className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                      >
+                        <span className="text-3xl">📁</span>
+                        <span className="text-xs text-gray-600 truncate w-full text-center">{folder.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Files */}
+              {s3Files.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500 mb-2">
+                    فایل‌ها ({toPersianNum(s3TotalFiles)})
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    {s3Files.map((file) => (
+                      <div
+                        key={file.key}
+                        className="group bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-blue-300 hover:shadow-md transition-all"
+                      >
+                        <div className="aspect-square bg-gray-50 relative">
+                          {file.mimeType.startsWith('image/') ? (
+                            <LazyImage
+                              src={file.url}
+                              alt={file.name}
+                              className="w-full h-full"
+                            />
+                          ) : file.mimeType.startsWith('video/') ? (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Film className="w-10 h-10 text-gray-300" />
+                            </div>
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <FileIcon className="w-10 h-10 text-gray-300" />
+                            </div>
+                          )}
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(file.url).then(() => {
+                                addToast('آدرس کپی شد', 'success')
+                              })
+                            }}
+                            className="absolute top-2 left-2 p-1.5 bg-white/90 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-white"
+                            title="کپی آدرس"
+                          >
+                            <Copy className="w-3.5 h-3.5 text-gray-600" />
+                          </button>
+                        </div>
+                        <div className="p-2">
+                          <p className="text-xs text-gray-700 truncate" dir="ltr" title={file.name}>
+                            {file.name}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {formatFileSize(file.size)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* S3 Pagination */}
+              {s3TotalPages > 1 && (
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => setS3Page((p) => Math.max(1, p - 1))}
+                    disabled={s3Page === 1}
+                    className="p-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  <span className="text-sm text-gray-600">
+                    صفحه {toPersianNum(s3Page)} از {toPersianNum(s3TotalPages)}
+                  </span>
+                  <button
+                    onClick={() => setS3Page((p) => Math.min(s3TotalPages, p + 1))}
+                    disabled={s3Page === s3TotalPages}
+                    className="p-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {s3Folders.length === 0 && s3Files.length === 0 && (
+                <div className="text-center py-20 text-gray-400 text-sm">
+                  این پوشه خالی است
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Detail Panel / Modal */}
       {detailItem && (
         <div className="fixed inset-0 z-40 flex items-center justify-center">
           {/* Backdrop */}
@@ -952,4 +1229,29 @@ export default function MediaLibraryPage() {
       `}</style>
     </div>
   )
+}
+type ActiveTab = 'library' | 'browser'
+
+interface S3Folder {
+  name: string
+  prefix: string
+}
+
+interface S3File {
+  key: string
+  name: string
+  size: number
+  lastModified: string | null
+  url: string
+  mimeType: string
+}
+
+interface S3BrowseResponse {
+  prefix: string
+  folders: S3Folder[]
+  files: S3File[]
+  totalFiles: number
+  page: number
+  limit: number
+  totalPages: number
 }

@@ -95,6 +95,7 @@ export async function startStrapiImportRun(params: {
 
   let logText = ''
   let latestSummary: Partial<StrapiImportSummary> = {}
+  const MAX_LOG_LINES = 500
 
   const persistProgress = async (event: StrapiImportProgressEvent) => {
     // Check if import was cancelled
@@ -102,7 +103,17 @@ export async function startStrapiImportRun(params: {
       throw new Error('درون‌ریزی توسط کاربر لغو شد')
     }
 
-    logText = logText ? `${logText}\n${formatLogLine(event)}` : formatLogLine(event)
+    const newLine = formatLogLine(event)
+    if (logText) {
+      const lines = logText.split('\n')
+      if (lines.length >= MAX_LOG_LINES) {
+        lines.splice(0, lines.length - MAX_LOG_LINES + 1)
+      }
+      lines.push(newLine)
+      logText = lines.join('\n')
+    } else {
+      logText = newLine
+    }
 
     if (event.summary) {
       latestSummary = {

@@ -372,4 +372,5 @@ model Media {
   @@index([mimeType])
   @@index([createdAt])
   @@index([filename])
+  @@index([path])
 }

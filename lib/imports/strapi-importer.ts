@@ -585,16 +585,18 @@ async function migratePosts(params: {
     for (const post of posts) {
       if (migrated >= actualTotal) break
 
-      await emit(onProgress, {
-        step: 'posts',
-        message: `${migrated} از ${actualTotal} مطلب منتقل شد`,
-        progressCurrent: migrated,
-        progressTotal: actualTotal,
-        summary: {
-          imported: summary.imported,
-          errors: summary.errors,
-        },
-      })
+      if (migrated % 50 === 0) {
+        await emit(onProgress, {
+          step: 'posts',
+          message: `${migrated} از ${actualTotal} مطلب منتقل شد`,
+          progressCurrent: migrated,
+          progressTotal: actualTotal,
+          summary: {
+            imported: summary.imported,
+            errors: summary.errors,
+          },
+        })
+      }
 
       try {
       const postType = resolvePostType(post.type)
@@ -813,91 +815,105 @@ async function migrateComments(params: {
     whereClause += ' AND (removed IS NULL OR removed != 1)'
   }
 
-  const [rows] = await conn.execute(
-    `SELECT ${selectColumns.join(', ')}
-     FROM comments_comment
-     ${whereClause}
-     ORDER BY id ASC
-     LIMIT ${options.commentLimit}`
+  // Get count for progress tracking
+  const [commentCountRows] = await conn.execute(
+    `SELECT COUNT(*) as c FROM comments_comment ${whereClause}`
   )
-
-  const comments = rows as MysqlRow[]
+  const totalComments = Math.min(
+    Number((commentCountRows as MysqlRow[])[0]?.c || 0),
+    options.commentLimit
+  )
 
   if (options.dryRun) {
     return
   }
 
   let migrated = 0
+  const COMMENT_BATCH_SIZE = 500
+  let commentOffset = 0
 
-  for (const comment of comments) {
-    let postId: number | null = null
+  while (commentOffset < totalComments) {
+    const [rows] = await conn.execute(
+      `SELECT ${selectColumns.join(', ')}
+       FROM comments_comment
+       ${whereClause}
+       ORDER BY id ASC
+       LIMIT ${COMMENT_BATCH_SIZE} OFFSET ${commentOffset}`
+    )
 
-    if (comment.related) {
-      const match = String(comment.related).match(/(\d+)$/)
-      if (match) {
-        postId = Number(match[1])
+    const comments = rows as MysqlRow[]
+    if (comments.length === 0) break
+
+    for (const comment of comments) {
+      let postId: number | null = null
+
+      if (comment.related) {
+        const match = String(comment.related).match(/(\d+)$/)
+        if (match) {
+          postId = Number(match[1])
+        }
       }
-    }
 
-    if (!postId) {
-      summary.skipped.commentsWithoutArticle++
-      continue
-    }
+      if (!postId) {
+        summary.skipped.commentsWithoutArticle++
+        continue
+      }
 
-    const article = await prisma.article.findFirst({
-      where: { id: postId },
-    })
-
-    if (!article) {
-      summary.skipped.commentsWithoutArticle++
-      continue
-    }
-
-    const authorName =
-      (authorNameColumn ? comment[authorNameColumn] : null) || 'ناشناس'
-    const authorEmail = authorEmailColumn ? comment[authorEmailColumn] : null
-
-    try {
-      await prisma.comment.upsert({
-        where: { strapiId: comment.id },
-        update: {
-          content: comment.content,
-          authorName,
-          authorEmail,
-          isApproved: hasApproval ? comment.approval_status === 'APPROVED' : !comment.blocked,
-          isAdmin: hasIsAdmin ? comment.is_admin_comment === 1 : false,
-        },
-        create: {
-          strapiId: comment.id,
-          articleId: article.id,
-          content: comment.content,
-          authorName,
-          authorEmail,
-          isApproved: hasApproval ? comment.approval_status === 'APPROVED' : !comment.blocked,
-          isAdmin: hasIsAdmin ? comment.is_admin_comment === 1 : false,
-          createdAt: comment.created_at || new Date(),
-        },
+      const article = await prisma.article.findFirst({
+        where: { id: postId },
       })
 
-      migrated++
-      summary.imported.comments = migrated
+      if (!article) {
+        summary.skipped.commentsWithoutArticle++
+        continue
+      }
 
-      if (migrated % 1000 === 0 || migrated === comments.length) {
-        await emit(onProgress, {
-          step: 'comments',
-          message: `${migrated} از ${comments.length} نظر منتقل شد`,
-          progressCurrent: migrated,
-          progressTotal: comments.length,
-          summary: {
-            imported: summary.imported,
-            skipped: summary.skipped,
-            errors: summary.errors,
+      const authorName =
+        (authorNameColumn ? comment[authorNameColumn] : null) || 'ناشناس'
+      const authorEmail = authorEmailColumn ? comment[authorEmailColumn] : null
+
+      try {
+        await prisma.comment.upsert({
+          where: { strapiId: comment.id },
+          update: {
+            content: comment.content,
+            authorName,
+            authorEmail,
+            isApproved: hasApproval ? comment.approval_status === 'APPROVED' : !comment.blocked,
+            isAdmin: hasIsAdmin ? comment.is_admin_comment === 1 : false,
+          },
+          create: {
+            strapiId: comment.id,
+            articleId: article.id,
+            content: comment.content,
+            authorName,
+            authorEmail,
+            isApproved: hasApproval ? comment.approval_status === 'APPROVED' : !comment.blocked,
+            isAdmin: hasIsAdmin ? comment.is_admin_comment === 1 : false,
+            createdAt: comment.created_at || new Date(),
           },
         })
+
+        migrated++
+        summary.imported.comments = migrated
+      } catch {
+        summary.errors.comments++
       }
-    } catch {
-      summary.errors.comments++
     }
+
+    commentOffset += COMMENT_BATCH_SIZE
+
+    await emit(onProgress, {
+      step: 'comments',
+      message: `${migrated} از ${totalComments} نظر منتقل شد`,
+      progressCurrent: migrated,
+      progressTotal: totalComments,
+      summary: {
+        imported: summary.imported,
+        skipped: summary.skipped,
+        errors: summary.errors,
+      },
+    })
   }
 
   try {
