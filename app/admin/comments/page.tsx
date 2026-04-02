@@ -61,6 +61,8 @@ export default function CommentsPage() {
   const [submittingReply, setSubmittingReply] = useState(false)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+   const [debouncedSearch, setDebouncedSearch] = useState('')
+   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchComments = useCallback(async () => {
     setLoading(true)
@@ -506,5 +508,3 @@ export default function CommentsPage() {
     </div>
   )
 }
-   const [debouncedSearch, setDebouncedSearch] = useState('')
-   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
