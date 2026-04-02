@@ -22,6 +22,15 @@ export const strapiConnectionSchema = z.object({
   s3BaseUrl: z.string().trim().url('آدرس پایه S3 معتبر نیست').optional().or(z.literal('')),
 })
 
+export const strapiConnectionSettingsSchema = z.object({
+  host: z.string().trim().min(1, 'آدرس سرور Strapi الزامی است'),
+  port: z.coerce.number().int().min(1).max(65535).default(3306),
+  user: z.string().trim().min(1, 'نام کاربری دیتابیس الزامی است'),
+  password: z.string().default(''),
+  database: z.string().trim().min(1, 'نام دیتابیس الزامی است'),
+  s3BaseUrl: z.string().trim().url('آدرس پایه S3 معتبر نیست').optional().or(z.literal('')),
+})
+
 export const strapiImportOptionsSchema = z.object({
   dryRun: z.boolean().default(false),
   skipComments: z.boolean().default(false),
@@ -36,5 +45,6 @@ export const strapiImportRequestSchema = z.object({
 })
 
 export type StrapiConnectionInput = z.infer<typeof strapiConnectionSchema>
+export type StrapiConnectionSettingsInput = z.infer<typeof strapiConnectionSettingsSchema>
 export type StrapiImportOptionsInput = z.infer<typeof strapiImportOptionsSchema>
 export type StrapiImportRequestInput = z.infer<typeof strapiImportRequestSchema>

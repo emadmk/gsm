@@ -1,14 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import prisma from '@/lib/db'
-import { strapiImportRequestSchema } from '@/lib/imports/strapi-schemas'
+import {
+  strapiImportOptionsSchema,
+  strapiImportRequestSchema,
+  type StrapiConnectionInput,
+  type StrapiImportOptionsInput,
+} from '@/lib/imports/strapi-schemas'
 import {
   markStaleStrapiImportsAsFailed,
   startStrapiImportRun,
 } from '@/lib/imports/strapi-runner'
+import { resolveStoredStrapiImportConnection } from '@/lib/imports/strapi-settings'
 import { requireAuthorizedSession } from '@/lib/api-auth'
 
 export const runtime = 'nodejs'
+
+async function readJsonBody(request: NextRequest) {
+  try {
+    return await request.json()
+  } catch {
+    return null
+  }
+}
 
 function sanitizeJsonValue(value: unknown): unknown {
   if (
@@ -88,17 +102,45 @@ export async function POST(request: NextRequest) {
     return auth.response
   }
 
-  const body = await request.json()
-  const parsed = strapiImportRequestSchema.safeParse(body)
+  const body = await readJsonBody(request)
+  let connection: StrapiConnectionInput
+  let options: StrapiImportOptionsInput
 
-  if (!parsed.success) {
-    return NextResponse.json(
-      {
-        error: 'اطلاعات درون‌ریزی نامعتبر است',
-        details: parsed.error.flatten(),
-      },
-      { status: 400 }
-    )
+  if (
+    typeof body === 'object' &&
+    body !== null &&
+    !Array.isArray(body) &&
+    'connection' in body
+  ) {
+    const parsed = strapiImportRequestSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          error: 'اطلاعات درون‌ریزی نامعتبر است',
+          details: parsed.error.flatten(),
+        },
+        { status: 400 }
+      )
+    }
+
+    connection = parsed.data.connection
+    options = parsed.data.options
+  } else {
+    const parsedOptions = strapiImportOptionsSchema.safeParse(body ?? {})
+
+    if (!parsedOptions.success) {
+      return NextResponse.json(
+        {
+          error: 'گزینه‌های درون‌ریزی نامعتبر است',
+          details: parsedOptions.error.flatten(),
+        },
+        { status: 400 }
+      )
+    }
+
+    connection = await resolveStoredStrapiImportConnection()
+    options = parsedOptions.data
   }
 
   await markStaleStrapiImportsAsFailed()
@@ -125,12 +167,12 @@ export async function POST(request: NextRequest) {
     data: {
       sourceType: 'STRAPI',
       status: 'PENDING',
-      sourceHost: parsed.data.connection.host,
-      sourcePort: parsed.data.connection.port,
-      sourceDatabase: parsed.data.connection.database,
-      sourceUser: parsed.data.connection.user,
+      sourceHost: connection.host,
+      sourcePort: connection.port,
+      sourceDatabase: connection.database,
+      sourceUser: connection.user,
       statusMessage: 'درون‌ریزی ایجاد شد و در حال شروع است',
-      options: sanitizeJsonValue(parsed.data.options) as Prisma.InputJsonValue,
+      options: sanitizeJsonValue(options) as Prisma.InputJsonValue,
       createdById: (auth.session?.user as { id?: string } | undefined)?.id,
     },
     select: {
@@ -147,8 +189,8 @@ export async function POST(request: NextRequest) {
 
   void startStrapiImportRun({
     runId: run.id,
-    connection: parsed.data.connection,
-    options: parsed.data.options,
+    connection,
+    options,
   })
 
   return NextResponse.json({ run }, { status: 202 })
