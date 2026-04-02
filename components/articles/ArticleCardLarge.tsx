@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import Badge from '@/components/ui/Badge'
-import { cn, getImageUrl, getPostUrl, getPostTypeLabel } from '@/lib/utils'
+import { cn, getImageUrl, getPostUrl, getPostTypeLabel, formatDateShort } from '@/lib/utils'
 import type { ArticleCardArticle } from './ArticleCard'
 
 interface ArticleCardLargeProps {
@@ -52,6 +52,21 @@ export default function ArticleCardLarge({ article, className }: ArticleCardLarg
             {article.excerpt}
           </p>
         )}
+
+        {/* Author & Date */}
+        <div className="flex items-center gap-2">
+          {article.author && (
+            <span className="caption text-gray-200">{article.author.name}</span>
+          )}
+          {article.author && article.publishedAt && (
+            <span className="caption text-gray-400">&#xB7;</span>
+          )}
+          {article.publishedAt && (
+            <span className="caption text-gray-300">
+              {formatDateShort(article.publishedAt)}
+            </span>
+          )}
+        </div>
       </div>
     </Link>
   )

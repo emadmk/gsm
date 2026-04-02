@@ -456,11 +456,19 @@ export default async function ReviewPage({ params }: PageProps) {
                           <h3 className="subtitle-sm text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors">
                             {post.title}
                           </h3>
-                          {post.publishedAt && (
-                            <span className="caption text-gray-400 mt-1 block">
-                              {formatDateShort(post.publishedAt)}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            {post.author && (
+                              <span className="caption text-gray-500">{post.author.name}</span>
+                            )}
+                            {post.author && post.publishedAt && (
+                              <span className="caption text-gray-300">&#xB7;</span>
+                            )}
+                            {post.publishedAt && (
+                              <span className="caption text-gray-400">
+                                {formatDateShort(post.publishedAt)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </Link>
                     ))}
