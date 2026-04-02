@@ -192,6 +192,7 @@ export default function MediaLibraryPage() {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [syncing, setSyncing] = useState(false)
+   const [syncPrefix, setSyncPrefix] = useState('media/')
   const [dragOver, setDragOver] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -546,9 +547,17 @@ export default function MediaLibraryPage() {
           >
             <Settings className="w-4 h-4" />
             تنظیمات S3
-          </Link>
+         </Link>
+           <div className="flex items-center gap-1">
+             <input
+               value={syncPrefix}
+               onChange={(e) => setSyncPrefix(e.target.value)}
+               placeholder="مسیر (مثلاً media/)"
+               className="w-36 px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+               dir="ltr"
+             />
           <button
-            onClick={() => void syncFromStorage()}
+             onClick={() => void syncFromStorage(syncPrefix)}
             disabled={syncing}
             className="flex items-center gap-2 px-4 py-2.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
           >
@@ -559,6 +568,7 @@ export default function MediaLibraryPage() {
             )}
             {syncing ? 'در حال همگام‌سازی...' : 'همگام‌سازی از S3'}
           </button>
+           </div>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}

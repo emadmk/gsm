@@ -9,8 +9,10 @@ import {
   Loader2,
   GripVertical,
   Search,
+  ImageIcon,
 } from 'lucide-react'
 import MediaUpload from '@/components/admin/MediaUpload'
+import MediaPickerModal from '@/components/admin/MediaPickerModal'
 import { getImageUrl } from '@/lib/utils'
 
 interface StoryItem {
@@ -38,6 +40,11 @@ export default function StoriesPage() {
 
   const [searchQuery, setSearchQuery] = useState('')
 
+   const [pickerOpen, setPickerOpen] = useState(false)
+   const [pickerTarget, setPickerTarget] = useState<
+     { type: 'cover' } | { type: 'item'; index: number } | null
+   >(null)
+ 
   const [form, setForm] = useState({
     title: '',
     cover: '',
@@ -156,6 +163,26 @@ export default function StoriesPage() {
     setForm({ ...form, items: newItems })
   }
 
+  const openPickerForCover = () => {
+    setPickerTarget({ type: 'cover' })
+    setPickerOpen(true)
+  }
+
+  const openPickerForItem = (index: number) => {
+    setPickerTarget({ type: 'item', index })
+    setPickerOpen(true)
+  }
+
+  const handlePickerSelect = (url: string) => {
+    if (!pickerTarget) return
+    if (pickerTarget.type === 'cover') {
+      setForm({ ...form, cover: url })
+    } else {
+      updateItem(pickerTarget.index, { url })
+    }
+    setPickerTarget(null)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -236,11 +263,21 @@ export default function StoriesPage() {
               </div>
             </div>
 
-            <MediaUpload
-              value={form.cover}
-              onChange={(url) => setForm({ ...form, cover: url })}
-              label="کاور استوری"
-            />
+            <div>
+              <MediaUpload
+                value={form.cover}
+                onChange={(url) => setForm({ ...form, cover: url })}
+                label="کاور استوری"
+              />
+              <button
+                type="button"
+                onClick={openPickerForCover}
+                className="mt-2 flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors"
+              >
+                <ImageIcon className="w-4 h-4" />
+                انتخاب از کتابخانه رسانه
+              </button>
+            </div>
 
             <div className="flex items-center gap-2">
               <input
@@ -319,15 +356,35 @@ export default function StoriesPage() {
                       <label className="block text-xs text-gray-500 mb-1">
                         آدرس فایل
                       </label>
-                      <input
-                        value={item.url}
-                        onChange={(e) =>
-                          updateItem(index, { url: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                        dir="ltr"
-                        placeholder="https://..."
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          value={item.url}
+                          onChange={(e) =>
+                            updateItem(index, { url: e.target.value })
+                          }
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                          dir="ltr"
+                          placeholder="https://..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => openPickerForItem(index)}
+                          className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors whitespace-nowrap"
+                        >
+                          <ImageIcon className="w-4 h-4" />
+                          کتابخانه
+                        </button>
+                      </div>
+                      {item.url && item.type === 'image' && (
+                        <div className="mt-2 relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={getImageUrl(item.url)}
+                            alt={item.caption || ''}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -437,6 +494,12 @@ export default function StoriesPage() {
           </table>
         </div>
       </div>
-    </div>
+
+       <MediaPickerModal
+         open={pickerOpen}
+         onClose={() => { setPickerOpen(false); setPickerTarget(null) }}
+         onSelect={handlePickerSelect}
+       />
+     </div>
   )
 }
