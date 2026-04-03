@@ -100,6 +100,10 @@ export function calculateReadingTime(wordCount: number): number {
   return Math.max(1, Math.ceil(wordCount / 200))
 }
 
+export function getAuthorDisplayName(authorName?: string | null): string {
+  return authorName?.trim() || 'تحریریه جی‌اس‌ام'
+}
+
 export function getPostTypeLabel(postType: string): string {
   const labels: Record<string, string> = {
     NEWS: 'اخبار',
@@ -108,6 +112,21 @@ export function getPostTypeLabel(postType: string): string {
     STORY: 'استوری',
   }
   return labels[postType] || postType
+}
+
+export function getPostTypeBadge(postType: string): { label: string; className: string } | null {
+  const badges: Record<string, { label: string; className: string }> = {
+    NEWS: {
+      label: 'خبر',
+      className: 'bg-blue-500 text-white',
+    },
+    REVIEW: {
+      label: 'بررسی',
+      className: 'bg-green-500 text-white',
+    },
+  }
+
+  return badges[postType] || null
 }
 
 export function getPostTypeSlug(postType: string): string {

@@ -33,6 +33,29 @@ const defaultSettings: MediaSettings = {
   s3_path_style: 'true',
 }
 
+function settingsArrayToObject(data: unknown): Record<string, string> {
+  if (Array.isArray(data)) {
+    return Object.fromEntries(
+      data
+        .filter(
+          (item): item is { key: string; value: string } =>
+            !!item &&
+            typeof item === 'object' &&
+            'key' in item &&
+            'value' in item &&
+            typeof item.key === 'string'
+        )
+        .map((item) => [item.key, String(item.value ?? '')])
+    )
+  }
+
+  if (data && typeof data === 'object') {
+    return data as Record<string, string>
+  }
+
+  return {}
+}
+
 export default function MediaSettingsPage() {
   const [settings, setSettings] = useState<MediaSettings>(defaultSettings)
   const [loading, setLoading] = useState(true)
@@ -47,18 +70,17 @@ export default function MediaSettingsPage() {
     fetch('/api/settings')
       .then((res) => res.json())
       .then((data) => {
-        if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-          setSettings({
-            s3_provider: data.s3_provider || defaultSettings.s3_provider,
-            s3_endpoint: data.s3_endpoint || defaultSettings.s3_endpoint,
-            s3_access_key: data.s3_access_key || defaultSettings.s3_access_key,
-            s3_secret_key: data.s3_secret_key || defaultSettings.s3_secret_key,
-            s3_region: data.s3_region || defaultSettings.s3_region,
-            s3_bucket: data.s3_bucket || defaultSettings.s3_bucket,
-            s3_cdn_url: data.s3_cdn_url || defaultSettings.s3_cdn_url,
-            s3_path_style: data.s3_path_style || defaultSettings.s3_path_style,
-          })
-        }
+        const values = settingsArrayToObject(data)
+        setSettings({
+          s3_provider: values.s3_provider || defaultSettings.s3_provider,
+          s3_endpoint: values.s3_endpoint || defaultSettings.s3_endpoint,
+          s3_access_key: values.s3_access_key || defaultSettings.s3_access_key,
+          s3_secret_key: values.s3_secret_key || defaultSettings.s3_secret_key,
+          s3_region: values.s3_region || defaultSettings.s3_region,
+          s3_bucket: values.s3_bucket || defaultSettings.s3_bucket,
+          s3_cdn_url: values.s3_cdn_url || defaultSettings.s3_cdn_url,
+          s3_path_style: values.s3_path_style || defaultSettings.s3_path_style,
+        })
       })
       .catch(() => {
         // error

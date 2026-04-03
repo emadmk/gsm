@@ -1,7 +1,16 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Clock, User } from 'lucide-react'
-import { cn, getImageUrl, getPostUrl, formatDateShort, toPersianDigits, stripHtml } from '@/lib/utils'
+import {
+  cn,
+  getImageUrl,
+  getPostUrl,
+  formatDateShort,
+  toPersianDigits,
+  stripHtml,
+  getPostTypeBadge,
+  getAuthorDisplayName,
+} from '@/lib/utils'
 import AuthorLink from '@/components/common/AuthorLink'
 
 export interface ArticleCardArticle {
@@ -58,6 +67,8 @@ export default function ArticleCard({ article, className, loading }: ArticleCard
   }
 
   const href = getPostUrl(article.id, article.slug, article.postType)
+  const postTypeBadge = getPostTypeBadge(article.postType)
+  const authorName = getAuthorDisplayName(article.author?.name)
 
   return (
     <Link
@@ -80,6 +91,16 @@ export default function ArticleCard({ article, className, loading }: ArticleCard
           className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
           sizes="(max-width: 768px) 96px, 120px"
         />
+        {postTypeBadge && (
+          <span
+            className={cn(
+              'absolute top-1.5 right-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium leading-tight shadow-sm',
+              postTypeBadge.className
+            )}
+          >
+            {postTypeBadge.label}
+          </span>
+        )}
       </div>
 
       {/* Content */}
@@ -98,28 +119,26 @@ export default function ArticleCard({ article, className, loading }: ArticleCard
 
         {/* Footer: Author, Date, Reading Time */}
         <div className="flex items-center gap-3 mt-auto pt-2">
-          {article.author && (
-            <div className="flex items-center gap-1.5">
-              {article.author.avatar ? (
-                <Image
-                  src={getImageUrl(article.author.avatar)}
-                  alt={article.author.name}
-                  width={24}
-                  height={24}
-                  className="rounded-full object-cover"
-                />
-              ) : (
-                <div className="size-6 rounded-full bg-gray-200 flex-center">
-                  <User className="w-3.5 h-3.5 text-gray-400" />
-                </div>
-              )}
-              {article.author?.slug ? (
-                <AuthorLink slug={article.author.slug} name={article.author.name} />
-              ) : (
-                <span className="caption text-gray-600">{article.author.name}</span>
-              )}
-            </div>
-          )}
+          <div className="flex items-center gap-1.5">
+            {article.author?.avatar ? (
+              <Image
+                src={getImageUrl(article.author.avatar)}
+                alt={authorName}
+                width={24}
+                height={24}
+                className="rounded-full object-cover"
+              />
+            ) : (
+              <div className="size-6 rounded-full bg-gray-200 flex-center">
+                <User className="w-3.5 h-3.5 text-gray-400" />
+              </div>
+            )}
+            {article.author?.slug ? (
+              <AuthorLink slug={article.author.slug} name={authorName} />
+            ) : (
+              <span className="caption text-gray-600">{authorName}</span>
+            )}
+          </div>
 
           {article.publishedAt && (
             <span className="caption text-gray-400">

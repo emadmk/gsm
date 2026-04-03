@@ -17,14 +17,13 @@ import {
   getImageUrl,
   toPersianDigits,
   formatDate,
-  timeAgo,
   cleanHtmlContent,
+  getAuthorDisplayName,
 } from '@/lib/utils'
 import Breadcrumb from '@/components/common/Breadcrumb'
 import ShareButton from '@/components/common/ShareButton'
 import CommentSection, { Comment } from '@/components/articles/CommentSection'
-import Badge from '@/components/ui/Badge'
-import { Clock, Calendar, Edit3, MessageCircle, User } from 'lucide-react'
+import { MessageCircle, User } from 'lucide-react'
 
 interface PageProps {
   params: Promise<{ id: string; slug: string }>
@@ -111,6 +110,7 @@ export default async function ArticlePage({ params }: PageProps) {
   ])
 
   const articleUrl = `${siteConfig.url}${getPostUrl(article.id, article.slug, article.postType)}`
+  const authorName = getAuthorDisplayName(article.author?.name)
   const readingTime = article.readingTime || (article.wordCount ? calculateReadingTime(article.wordCount) : 3)
   const commentsCount = article.comments.reduce(
     (acc, c) => acc + 1 + c.replies.length,
@@ -209,18 +209,20 @@ export default async function ArticlePage({ params }: PageProps) {
 
                 {/* Meta Info */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-6 text-gray-500 body-sm">
-                  {article.author && (
-                    <span>
-                      نوشته{' '}
+                  <span>
+                    نوشته{' '}
+                    {article.author?.slug ? (
                       <Link
                         href={`/author/${article.author.slug}`}
                         className="text-primary-500 hover:underline"
                       >
-                        {article.author.name}
+                        {authorName}
                       </Link>
-                    </span>
-                  )}
-                  {article.author && <span className="text-gray-300">&#xB7;</span>}
+                    ) : (
+                      <span className="text-primary-500">{authorName}</span>
+                    )}
+                  </span>
+                  <span className="text-gray-300">&#xB7;</span>
 
                   {article.publishedAt && (
                     <span>منتشر شده در {formatDate(article.publishedAt)}</span>
@@ -378,10 +380,8 @@ export default async function ArticlePage({ params }: PageProps) {
                             {post.title}
                           </h3>
                           <div className="flex items-center gap-2 mt-1">
-                            {post.author && (
-                              <span className="caption text-gray-500">{post.author.name}</span>
-                            )}
-                            {post.author && post.publishedAt && (
+                            <span className="caption text-gray-500">{getAuthorDisplayName(post.author?.name)}</span>
+                            {post.publishedAt && (
                               <span className="caption text-gray-300">&#xB7;</span>
                             )}
                             {post.publishedAt && (

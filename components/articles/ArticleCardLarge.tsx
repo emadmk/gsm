@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import Badge from '@/components/ui/Badge'
-import { cn, getImageUrl, getPostUrl, getPostTypeLabel, formatDateShort } from '@/lib/utils'
+import { cn, getImageUrl, getPostUrl, formatDateShort, getPostTypeBadge, getAuthorDisplayName } from '@/lib/utils'
 import type { ArticleCardArticle } from './ArticleCard'
 
 interface ArticleCardLargeProps {
@@ -11,6 +11,8 @@ interface ArticleCardLargeProps {
 
 export default function ArticleCardLarge({ article, className }: ArticleCardLargeProps) {
   const href = getPostUrl(article.id, article.slug, article.postType)
+  const postTypeBadge = getPostTypeBadge(article.postType)
+  const authorName = getAuthorDisplayName(article.author?.name)
 
   return (
     <Link
@@ -37,9 +39,14 @@ export default function ArticleCardLarge({ article, className }: ArticleCardLarg
       {/* Content Overlay */}
       <div className="absolute bottom-0 right-0 left-0 p-4 md:p-6 space-y-2">
         {/* Post Type Badge */}
-        <Badge variant="primary" size="sm" className="bg-white/20 text-white backdrop-blur-sm">
-          {getPostTypeLabel(article.postType)}
-        </Badge>
+        {postTypeBadge && (
+          <Badge
+            size="sm"
+            className={cn('backdrop-blur-sm rounded-full', postTypeBadge.className)}
+          >
+            {postTypeBadge.label}
+          </Badge>
+        )}
 
         {/* Title */}
         <h3 className="h3 md:h2 text-white line-clamp-2 group-hover:text-primary-20 transition-colors">
@@ -55,10 +62,8 @@ export default function ArticleCardLarge({ article, className }: ArticleCardLarg
 
         {/* Author & Date */}
         <div className="flex items-center gap-2">
-          {article.author && (
-            <span className="caption text-gray-200">{article.author.name}</span>
-          )}
-          {article.author && article.publishedAt && (
+          <span className="caption text-gray-200">{authorName}</span>
+          {article.publishedAt && (
             <span className="caption text-gray-400">&#xB7;</span>
           )}
           {article.publishedAt && (

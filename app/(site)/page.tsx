@@ -6,10 +6,11 @@ import { generateSeoMeta, generateWebSiteSchema, siteConfig } from '@/lib/seo'
 import {
   getPostUrl,
   formatDateShort,
-  calculateReadingTime,
-  getPostTypeLabel,
   getImageUrl,
   toPersianDigits,
+  cn,
+  getPostTypeBadge,
+  getAuthorDisplayName,
 } from '@/lib/utils'
 import { Clock, User, Eye, RefreshCw } from 'lucide-react'
 import ScrollAnimations from './ScrollAnimations'
@@ -82,6 +83,8 @@ export default async function HomePage() {
     ])
 
   const websiteSchema = generateWebSiteSchema()
+  const latestHeroBadge = latestPosts[0] ? getPostTypeBadge(latestPosts[0].postType) : null
+  const reviewHeroBadge = reviews[0] ? getPostTypeBadge(reviews[0].postType) : null
 
   return (
     <>
@@ -138,6 +141,16 @@ export default async function HomePage() {
                   sizes="(max-width: 768px) 100vw, 50vw"
                   priority
                 />
+                {latestHeroBadge && (
+                  <span
+                    className={cn(
+                      'absolute top-4 right-4 z-10 rounded-full px-3 py-1 text-xs font-medium shadow-sm',
+                      latestHeroBadge.className
+                    )}
+                  >
+                    {latestHeroBadge.label}
+                  </span>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent transition-opacity duration-300 group-hover:from-black/90" />
                 <div className="absolute bottom-0 right-0 left-0 p-5 transition-transform duration-300 group-hover:translate-y-[-4px]">
                   {latestPosts[0].category && (
@@ -151,6 +164,11 @@ export default async function HomePage() {
                   <div className="flex items-center gap-3 mt-2 text-gray-200 caption">
                     {latestPosts[0].author && (
                       <AuthorLink slug={latestPosts[0].author.slug} name={latestPosts[0].author.name} className="hover:text-white transition-colors cursor-pointer" />
+                    ) || (
+                      <span>{getAuthorDisplayName()}</span>
+                    )}
+                    {latestPosts[0].publishedAt && (
+                      <span className="text-gray-400">&#xB7;</span>
                     )}
                     {latestPosts[0].publishedAt && (
                       <span>{formatDateShort(latestPosts[0].publishedAt)}</span>
@@ -166,6 +184,20 @@ export default async function HomePage() {
                   href={getPostUrl(post.id, post.slug, post.postType)}
                   className="relative rounded-xl overflow-hidden group min-h-[180px]"
                 >
+                  {(() => {
+                    const badge = getPostTypeBadge(post.postType)
+
+                    return badge ? (
+                      <span
+                        className={cn(
+                          'absolute top-3 right-3 z-10 rounded-full px-2.5 py-1 text-[11px] font-medium shadow-sm',
+                          badge.className
+                        )}
+                      >
+                        {badge.label}
+                      </span>
+                    ) : null
+                  })()}
                   <Image
                     src={getImageUrl(post.image)}
                     alt={post.title}
@@ -181,6 +213,21 @@ export default async function HomePage() {
                       </span>
                     )}
                     <h3 className="subtitle-sm text-white line-clamp-2">{post.title}</h3>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-gray-200">
+                      {post.author ? (
+                        <AuthorLink
+                          slug={post.author.slug}
+                          name={post.author.name}
+                          className="text-[11px] text-gray-200 hover:text-white transition-colors cursor-pointer"
+                        />
+                      ) : (
+                        <span>{getAuthorDisplayName()}</span>
+                      )}
+                      {post.publishedAt && (
+                        <span className="text-gray-400">&#xB7;</span>
+                      )}
+                      {post.publishedAt && <span>{formatDateShort(post.publishedAt)}</span>}
+                    </div>
                   </div>
                 </Link>
               ))}
@@ -210,12 +257,34 @@ export default async function HomePage() {
                   className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                   sizes="(max-width: 768px) 100vw, 33vw"
                 />
+                {reviewHeroBadge && (
+                  <span
+                    className={cn(
+                      'absolute top-4 right-4 z-10 rounded-full px-3 py-1 text-xs font-medium shadow-sm',
+                      reviewHeroBadge.className
+                    )}
+                  >
+                    {reviewHeroBadge.label}
+                  </span>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                 <div className="absolute bottom-0 right-0 left-0 p-4 transition-transform duration-300 group-hover:translate-y-[-2px]">
-                  <span className="inline-block px-2 py-0.5 bg-green-500 text-white text-xs rounded-full mb-2">
-                    بررسی
-                  </span>
                   <h3 className="h3 text-white line-clamp-2">{reviews[0].title}</h3>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-200">
+                    {reviews[0].author ? (
+                      <AuthorLink
+                        slug={reviews[0].author.slug}
+                        name={reviews[0].author.name}
+                        className="text-[11px] text-gray-200 hover:text-white transition-colors cursor-pointer"
+                      />
+                    ) : (
+                      <span>{getAuthorDisplayName()}</span>
+                    )}
+                    {reviews[0].publishedAt && (
+                      <span className="text-gray-400">&#xB7;</span>
+                    )}
+                    {reviews[0].publishedAt && <span>{formatDateShort(reviews[0].publishedAt)}</span>}
+                  </div>
                 </div>
               </Link>
 
@@ -245,11 +314,21 @@ export default async function HomePage() {
                       <h3 className="subtitle-sm text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors duration-300">
                         {review.title}
                       </h3>
-                      {review.publishedAt && (
-                        <span className="caption text-gray-400">
-                          {formatDateShort(review.publishedAt)}
-                        </span>
-                      )}
+                      <div className="flex flex-wrap items-center gap-2 pt-2">
+                        {review.author ? (
+                          <AuthorLink slug={review.author.slug} name={review.author.name} />
+                        ) : (
+                          <span className="caption text-gray-600">{getAuthorDisplayName()}</span>
+                        )}
+                        {review.publishedAt && (
+                          <span className="caption text-gray-300">&#xB7;</span>
+                        )}
+                        {review.publishedAt && (
+                          <span className="caption text-gray-400">
+                            {formatDateShort(review.publishedAt)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </Link>
                 ))}
@@ -283,47 +362,56 @@ export default async function HomePage() {
                         group
                       "
                     >
-                     <div className="relative w-28 h-24 md:w-32 md:h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
-                       <Image
-                         src={getImageUrl(item.image)}
-                         alt={item.title}
-                         fill
-                         className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
-                         sizes="128px"
-                       />
-                        {item.postType === 'NEWS' && (
-                          <span className="absolute top-1.5 right-1.5 px-2 py-0.5 bg-blue-500 text-white text-[10px] rounded-full leading-tight">
-                            خبر
-                          </span>
-                        )}
-                        {item.postType === 'REVIEW' && (
-                          <span className="absolute top-1.5 right-1.5 px-2 py-0.5 bg-green-500 text-white text-[10px] rounded-full leading-tight">
-                            بررسی
-                          </span>
-                        )}
+                      <div className="relative w-28 h-24 md:w-32 md:h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                        <Image
+                          src={getImageUrl(item.image)}
+                          alt={item.title}
+                          fill
+                          className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
+                          sizes="128px"
+                        />
+                        {(() => {
+                          const badge = getPostTypeBadge(item.postType)
+
+                          return badge ? (
+                            <span
+                              className={cn(
+                                'absolute top-1.5 right-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium leading-tight shadow-sm',
+                                badge.className
+                              )}
+                            >
+                              {badge.label}
+                            </span>
+                          ) : null
+                        })()}
                       </div>
                       <div className="flex flex-col flex-1 min-w-0 justify-between">
                         <h3 className="subtitle-sm md:subtitle-lg text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors duration-300">
                           {item.title}
                         </h3>
                         <div className="flex items-center gap-3 mt-auto pt-2">
-                          {item.author && (
-                            <div className="flex items-center gap-1.5">
-                              {item.author.avatar ? (
-                                <Image
-                                  src={getImageUrl(item.author.avatar)}
-                                  alt={item.author.name}
-                                  width={20}
-                                  height={20}
-                                  className="rounded-full object-cover"
-                                />
-                              ) : (
-                                <div className="size-5 rounded-full bg-gray-200 flex-center">
-                                  <User className="w-3 h-3 text-gray-400" />
-                                </div>
-                              )}
-                              <AuthorLink slug={item.author.slug} name={item.author.name} />
-                            </div>
+                          <div className="flex items-center gap-1.5">
+                            {item.author?.avatar ? (
+                              <Image
+                                src={getImageUrl(item.author.avatar)}
+                                alt={getAuthorDisplayName(item.author?.name)}
+                                width={20}
+                                height={20}
+                                className="rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="size-5 rounded-full bg-gray-200 flex-center">
+                                <User className="w-3 h-3 text-gray-400" />
+                              </div>
+                            )}
+                            {item.author?.slug ? (
+                              <AuthorLink slug={item.author.slug} name={getAuthorDisplayName(item.author.name)} />
+                            ) : (
+                              <span className="caption text-gray-600">{getAuthorDisplayName(item.author?.name)}</span>
+                            )}
+                          </div>
+                          {item.publishedAt && (
+                            <span className="caption text-gray-300">&#xB7;</span>
                           )}
                           {item.publishedAt && (
                             <span className="caption text-gray-400">
@@ -379,23 +467,28 @@ export default async function HomePage() {
                           {item.title}
                         </h3>
                         <div className="flex items-center gap-3 mt-auto pt-2">
-                          {item.author && (
-                            <div className="flex items-center gap-1.5">
-                              {item.author.avatar ? (
-                                <Image
-                                  src={getImageUrl(item.author.avatar)}
-                                  alt={item.author.name}
-                                  width={20}
-                                  height={20}
-                                  className="rounded-full object-cover"
-                                />
-                              ) : (
-                                <div className="size-5 rounded-full bg-gray-200 flex-center">
-                                  <User className="w-3 h-3 text-gray-400" />
-                                </div>
-                              )}
-                              <AuthorLink slug={item.author.slug} name={item.author.name} />
-                            </div>
+                          <div className="flex items-center gap-1.5">
+                            {item.author?.avatar ? (
+                              <Image
+                                src={getImageUrl(item.author.avatar)}
+                                alt={getAuthorDisplayName(item.author?.name)}
+                                width={20}
+                                height={20}
+                                className="rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="size-5 rounded-full bg-gray-200 flex-center">
+                                <User className="w-3 h-3 text-gray-400" />
+                              </div>
+                            )}
+                            {item.author?.slug ? (
+                              <AuthorLink slug={item.author.slug} name={getAuthorDisplayName(item.author.name)} />
+                            ) : (
+                              <span className="caption text-gray-600">{getAuthorDisplayName(item.author?.name)}</span>
+                            )}
+                          </div>
+                          {item.publishedAt && (
+                            <span className="caption text-gray-300">&#xB7;</span>
                           )}
                           {item.publishedAt && (
                             <span className="caption text-gray-400">
@@ -447,7 +540,11 @@ export default async function HomePage() {
                       <h3 className="subtitle-sm text-gray-800 line-clamp-2 group-hover:text-primary-500 transition-colors duration-300">
                         {post.title}
                       </h3>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <span className="caption text-gray-500">{getAuthorDisplayName(post.author?.name)}</span>
+                        {post.publishedAt && (
+                          <span className="caption text-gray-300">&#xB7;</span>
+                        )}
                         <span className="caption text-gray-400">
                           {post.publishedAt ? formatDateShort(post.publishedAt) : ''}
                         </span>

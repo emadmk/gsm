@@ -10,6 +10,33 @@ import {
 
 const MASKED_VALUE = '••••••••'
 
+type SettingEntry = {
+  key: string
+  value: string
+  isSecret: boolean
+}
+
+function buildResponseEntries(
+  settings: Array<{ key: string; value: string; isSecret: boolean }>
+): SettingEntry[] {
+  return settings.map((setting) => ({
+    key: setting.key,
+    value:
+      setting.isSecret && setting.value
+        ? MASKED_VALUE
+        : deserializeSettingValue(setting.key, setting.value),
+    isSecret: setting.isSecret,
+  }))
+}
+
+function buildResponseObject(
+  settings: Array<{ key: string; value: string; isSecret: boolean }>
+) {
+  return Object.fromEntries(
+    buildResponseEntries(settings).map((setting) => [setting.key, setting.value])
+  )
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuthorizedSession(request, { requiredRole: 'ADMIN' })
@@ -20,7 +47,7 @@ export async function GET(request: NextRequest) {
     const settings = await prisma.setting.findMany()
     const legacySensitiveSettings: Array<{ id: string; key: string; value: string }> = []
 
-    const result: Array<{ key: string; value: string; isSecret: boolean }> = []
+    const result: SettingEntry[] = []
 
     for (const setting of settings) {
       if (
@@ -78,15 +105,24 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
+    let entries: SettingEntry[] = []
+    let isPartialObjectUpdate = false
 
-    if (!Array.isArray(body)) {
+    if (Array.isArray(body)) {
+      entries = body as SettingEntry[]
+    } else if (body && typeof body === 'object') {
+      isPartialObjectUpdate = true
+      entries = Object.entries(body as Record<string, unknown>).map(([key, value]) => ({
+        key,
+        value: value == null ? '' : String(value),
+        isSecret: isSensitiveSettingKey(key),
+      }))
+    } else {
       return NextResponse.json(
         { error: 'فرمت داده نامعتبر' },
         { status: 400 }
       )
     }
-
-    const entries = body as Array<{ key: string; value: string; isSecret: boolean }>
 
     if (entries.length === 0) {
       return NextResponse.json(
@@ -125,24 +161,24 @@ export async function POST(request: NextRequest) {
       })
     )
 
-    // Find keys in DB that are NOT in the request → they were deleted
-    const sentKeys = new Set(entries.map((e) => e.key))
-    const allCurrent = await prisma.setting.findMany({ select: { key: true } })
-    const keysToDelete = allCurrent
-      .map((r) => r.key)
-      .filter((k) => !sentKeys.has(k))
+    if (!isPartialObjectUpdate) {
+      // Array payloads are treated as a full replacement.
+      const sentKeys = new Set(entries.map((e) => e.key))
+      const allCurrent = await prisma.setting.findMany({ select: { key: true } })
+      const keysToDelete = allCurrent
+        .map((r) => r.key)
+        .filter((k) => !sentKeys.has(k))
 
-    if (keysToDelete.length > 0) {
-      await prisma.setting.deleteMany({ where: { key: { in: keysToDelete } } })
+      if (keysToDelete.length > 0) {
+        await prisma.setting.deleteMany({ where: { key: { in: keysToDelete } } })
+      }
     }
 
-    const response: Array<{ key: string; value: string; isSecret: boolean }> = results.map((r) => ({
-      key: r.key,
-      value: r.isSecret && r.value ? MASKED_VALUE : deserializeSettingValue(r.key, r.value),
-      isSecret: r.isSecret,
-    }))
+    if (isPartialObjectUpdate) {
+      return NextResponse.json(buildResponseObject(results))
+    }
 
-    return NextResponse.json(response)
+    return NextResponse.json(buildResponseEntries(results))
   } catch (error) {
     console.error('Error updating settings:', error)
     return NextResponse.json(

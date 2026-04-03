@@ -52,6 +52,29 @@ interface ArticleSeoData {
   checks: SeoCheck[]
 }
 
+function settingsArrayToObject(data: unknown): Record<string, string> {
+  if (Array.isArray(data)) {
+    return Object.fromEntries(
+      data
+        .filter(
+          (item): item is { key: string; value: string } =>
+            !!item &&
+            typeof item === 'object' &&
+            'key' in item &&
+            'value' in item &&
+            typeof item.key === 'string'
+        )
+        .map((item) => [item.key, String(item.value ?? '')])
+    )
+  }
+
+  if (data && typeof data === 'object') {
+    return data as Record<string, string>
+  }
+
+  return {}
+}
+
 // ==================== SEO Scoring Logic ====================
 
 function analyzeSeo(article: Article): { score: number; checks: SeoCheck[] } {
@@ -160,12 +183,6 @@ function scoreBg(score: number): string {
   return 'bg-red-50 border-red-200'
 }
 
-function scoreLabel(score: number): string {
-  if (score >= 70) return 'خوب'
-  if (score >= 40) return 'نیاز به بهبود'
-  return 'ضعیف'
-}
-
 // ==================== Component ====================
 
 export default function SeoManagementPage() {
@@ -208,9 +225,7 @@ export default function SeoManagementPage() {
     fetch('/api/settings')
       .then((r) => r.json())
       .then((data) => {
-        if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-          setSettings(data)
-        }
+        setSettings(settingsArrayToObject(data))
       })
       .catch(() => setSettingsError('خطا در دریافت تنظیمات'))
       .finally(() => setSettingsLoading(false))
@@ -752,4 +767,3 @@ export default function SeoManagementPage() {
     </div>
   )
 }
-
