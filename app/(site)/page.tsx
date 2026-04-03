@@ -14,6 +14,7 @@ import {
 import { Clock, User, Eye, RefreshCw } from 'lucide-react'
 import ScrollAnimations from './ScrollAnimations'
 import AuthorLink from '@/components/common/AuthorLink'
+import StoriesSlider from '@/components/stories/StoriesSlider'
 
 // Force dynamic rendering - prevents stale cache (fixes 1398 date issue)
 export const dynamic = 'force-dynamic'
@@ -94,37 +95,7 @@ export default async function HomePage() {
 
       <div className="container mx-auto px-4" dir="rtl">
         {/* Stories Slider */}
-        {stories.length > 0 && (
-          <section className="py-4 fade-section">
-            <div className="flex gap-4 pb-2 overflow-x-auto no-scrollbar">
-              {stories.map((story) => (
-                <div
-                  key={story.id}
-                  className="flex flex-col items-center flex-shrink-0 group cursor-pointer"
-                >
-                  <div className="
-                    w-16 h-16 md:w-20 md:h-20 rounded-full
-                    ring-2 ring-primary-500 ring-offset-2
-                    overflow-hidden bg-gray-100
-                    transition-transform duration-300
-                    group-hover:scale-105 group-hover:ring-primary-600
-                  ">
-                    <Image
-                      src={getImageUrl(story.cover)}
-                      alt={story.title}
-                      width={80}
-                      height={80}
-                      className="object-cover w-full h-full"
-                    />
-                  </div>
-                  <span className="caption text-gray-700 mt-1.5 max-w-[5rem] text-center truncate group-hover:text-primary-500 transition-colors">
-                    {story.title}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+        {stories.length > 0 && <StoriesSlider stories={stories} />}
 
         {/* Updated Posts Ticker */}
         {updatedPosts.length > 0 && (
