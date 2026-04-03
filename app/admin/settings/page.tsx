@@ -1,11 +1,12 @@
 'use client'
 
  import { useEffect, useState } from 'react'
- import { Save, Plus, Trash2, Loader2, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react'
+ import { Save, Plus, Trash2, Loader2, RefreshCw, AlertCircle, CheckCircle2, Eye, EyeOff, Lock, Unlock } from 'lucide-react'
 
 interface SettingEntry {
   key: string
   value: string
+  isSecret: boolean
 }
 
 const defaultKeys = [
@@ -32,6 +33,8 @@ export default function SettingsPage() {
   const [error, setError] = useState('')
   const [newKey, setNewKey] = useState('')
   const [newValue, setNewValue] = useState('')
+  const [newIsSecret, setNewIsSecret] = useState(false)
+  const [visibleSecrets, setVisibleSecrets] = useState<Set<string>>(new Set())
   const [migrateLoading, setMigrateLoading] = useState(false)
   const [migrateCheckLoading, setMigrateCheckLoading] = useState(false)
   const [migrateCount, setMigrateCount] = useState<number | null>(null)
@@ -77,25 +80,20 @@ export default function SettingsPage() {
     fetch('/api/settings')
       .then((res) => res.json())
       .then((data) => {
-        if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-          // Merge with default keys to ensure they all appear
-          const existing = new Map<string, string>(
-            Object.entries(data) as [string, string][]
+        if (Array.isArray(data)) {
+          const serverMap = new Map<string, SettingEntry>(
+            data.map((s: SettingEntry) => [s.key, s])
           )
           const entries: SettingEntry[] = []
 
-          // Add default keys first (in order)
           for (const dk of defaultKeys) {
-            entries.push({
-              key: dk.key,
-              value: existing.get(dk.key) || '',
-            })
-            existing.delete(dk.key)
+            const existing = serverMap.get(dk.key)
+            entries.push({ key: dk.key, value: existing?.value || '', isSecret: existing?.isSecret || false })
+            serverMap.delete(dk.key)
           }
 
-          // Add remaining custom keys
-          for (const [key, value] of existing) {
-            entries.push({ key, value })
+          for (const [, entry] of serverMap) {
+            entries.push(entry)
           }
 
           setSettings(entries)
@@ -120,9 +118,10 @@ export default function SettingsPage() {
       setError('این کلید قبلا وجود دارد')
       return
     }
-    setSettings((prev) => [...prev, { key: newKey.trim(), value: newValue }])
+    setSettings((prev) => [...prev, { key: newKey.trim(), value: newValue, isSecret: newIsSecret }])
     setNewKey('')
     setNewValue('')
+    setNewIsSecret(false)
     setError('')
   }
 
@@ -136,15 +135,10 @@ export default function SettingsPage() {
     setSuccess(false)
 
     try {
-      const payload: Record<string, string> = {}
-      for (const entry of settings) {
-        payload[entry.key] = entry.value
-      }
-
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(settings),
       })
 
       if (!res.ok) {
@@ -152,6 +146,11 @@ export default function SettingsPage() {
         throw new Error(data.error || 'خطا در ذخیره تنظیمات')
       }
 
+      const saved = await res.json()
+      if (Array.isArray(saved)) {
+        setSettings(saved)
+        setVisibleSecrets(new Set())
+      }
       setSuccess(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'خطا در ذخیره تنظیمات')
@@ -208,12 +207,15 @@ export default function SettingsPage() {
         {settings.map((entry, index) => (
           <div key={entry.key} className="flex items-start gap-3">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {getLabelForKey(entry.key)}
-                <span className="text-xs text-gray-400 mr-2" dir="ltr">
-                  ({entry.key})
-                </span>
-              </label>
+             <label className="block text-sm font-medium text-gray-700 mb-1">
+               {getLabelForKey(entry.key)}
+               <span className="text-xs text-gray-400 mr-2" dir="ltr">
+                 ({entry.key})
+               </span>
+               {entry.isSecret && (
+                 <Lock className="inline w-3.5 h-3.5 mr-1 text-amber-500" />
+               )}
+             </label>
               {entry.key.includes('description') ||
               entry.key.includes('text') ||
               entry.key.includes('analytics') ? (
@@ -223,35 +225,71 @@ export default function SettingsPage() {
                   rows={3}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-y"
                 />
-              ) : (
-                <input
-                  value={entry.value}
-                  onChange={(e) => handleChange(index, e.target.value)}
-                  type="text"
-                  dir={
-                    entry.key.includes('url') ||
-                    entry.key.includes('logo') ||
-                    entry.key.includes('favicon') ||
-                    entry.key.includes('email') ||
-                    entry.key.includes('social_') ||
-                    entry.key.includes('analytics')
-                      ? 'ltr'
-                      : 'rtl'
-                  }
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                />
+             ) : (
+                <div className="relative">
+                  <input
+                    value={entry.value}
+                    onChange={(e) => handleChange(index, e.target.value)}
+                    type={entry.isSecret && !visibleSecrets.has(entry.key) ? 'password' : 'text'}
+                    dir={
+                      entry.key.includes('url') ||
+                      entry.key.includes('logo') ||
+                      entry.key.includes('favicon') ||
+                      entry.key.includes('email') ||
+                      entry.key.includes('social_') ||
+                      entry.key.includes('analytics')
+                        ? 'ltr'
+                        : 'rtl'
+                    }
+                    className={`w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${entry.isSecret ? 'pl-10' : ''}`}
+                  />
+                  {entry.isSecret && (
+                    <button
+                      type="button"
+                      onClick={() => setVisibleSecrets((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(entry.key)) next.delete(entry.key)
+                        else next.add(entry.key)
+                        return next
+                      })}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                      title={visibleSecrets.has(entry.key) ? 'مخفی کردن' : 'نمایش'}
+                    >
+                      {visibleSecrets.has(entry.key) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
-            {/* Only allow removing custom keys (not default ones) */}
-            {!defaultKeys.some((dk) => dk.key === entry.key) && (
+            <div className="flex items-center gap-1 mt-7">
               <button
-                onClick={() => handleRemoveSetting(index)}
-                className="mt-7 p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
-                title="حذف"
+                type="button"
+                onClick={() => {
+                  setSettings((prev) => {
+                    const updated = [...prev]
+                    updated[index] = { ...updated[index], isSecret: !updated[index].isSecret }
+                    return updated
+                  })
+                }}
+                className={`p-1.5 rounded transition-colors ${
+                  entry.isSecret
+                    ? 'text-amber-600 bg-amber-50 hover:bg-amber-100'
+                    : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                }`}
+                title={entry.isSecret ? 'غیرمخفی کردن' : 'مخفی کردن مقدار'}
               >
-                <Trash2 className="w-4 h-4" />
+                {entry.isSecret ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
               </button>
-            )}
+              {!defaultKeys.some((dk) => dk.key === entry.key) && (
+                <button
+                  onClick={() => handleRemoveSetting(index)}
+                  className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                  title="حذف"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -282,8 +320,22 @@ export default function SettingsPage() {
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              placeholder="مقدار"
-            />
+             placeholder="مقدار"
+           />
+         </div>
+          <div className="flex items-center gap-2 pb-1">
+            <button
+              type="button"
+              onClick={() => setNewIsSecret(!newIsSecret)}
+              className={`p-2 rounded-lg transition-colors ${
+                newIsSecret
+                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+              title={newIsSecret ? 'مخفی' : 'عادی'}
+            >
+              {newIsSecret ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+            </button>
           </div>
           <button
             onClick={handleAddSetting}

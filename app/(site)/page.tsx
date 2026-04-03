@@ -283,14 +283,24 @@ export default async function HomePage() {
                         group
                       "
                     >
-                      <div className="relative w-28 h-24 md:w-32 md:h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
-                        <Image
-                          src={getImageUrl(item.image)}
-                          alt={item.title}
-                          fill
-                          className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
-                          sizes="128px"
-                        />
+                     <div className="relative w-28 h-24 md:w-32 md:h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                       <Image
+                         src={getImageUrl(item.image)}
+                         alt={item.title}
+                         fill
+                         className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
+                         sizes="128px"
+                       />
+                        {item.postType === 'NEWS' && (
+                          <span className="absolute top-1.5 right-1.5 px-2 py-0.5 bg-blue-500 text-white text-[10px] rounded-full leading-tight">
+                            خبر
+                          </span>
+                        )}
+                        {item.postType === 'REVIEW' && (
+                          <span className="absolute top-1.5 right-1.5 px-2 py-0.5 bg-green-500 text-white text-[10px] rounded-full leading-tight">
+                            بررسی
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-col flex-1 min-w-0 justify-between">
                         <h3 className="subtitle-sm md:subtitle-lg text-gray-900 line-clamp-2 group-hover:text-primary-500 transition-colors duration-300">

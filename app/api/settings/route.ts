@@ -8,6 +8,8 @@ import {
   serializeSettingValue,
 } from '@/lib/secure-settings'
 
+const MASKED_VALUE = '••••••••'
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuthorizedSession(request, { requiredRole: 'ADMIN' })
@@ -18,8 +20,8 @@ export async function GET(request: NextRequest) {
     const settings = await prisma.setting.findMany()
     const legacySensitiveSettings: Array<{ id: string; key: string; value: string }> = []
 
-    // Convert to key-value object for convenience
-    const settingsMap: Record<string, string> = {}
+    const result: Array<{ key: string; value: string; isSecret: boolean }> = []
+
     for (const setting of settings) {
       if (
         isSensitiveSettingKey(setting.key) &&
@@ -33,7 +35,12 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      settingsMap[setting.key] = deserializeSettingValue(setting.key, setting.value)
+      const shouldMask = setting.isSecret || isSensitiveSettingKey(setting.key)
+      result.push({
+        key: setting.key,
+        value: shouldMask && setting.value ? MASKED_VALUE : deserializeSettingValue(setting.key, setting.value),
+        isSecret: shouldMask,
+      })
     }
 
     if (legacySensitiveSettings.length > 0) {
@@ -41,13 +48,16 @@ export async function GET(request: NextRequest) {
         legacySensitiveSettings.map((setting) =>
           prisma.setting.update({
             where: { id: setting.id },
-            data: { value: serializeSettingValue(setting.key, setting.value) },
+            data: {
+              value: serializeSettingValue(setting.key, setting.value),
+              isSecret: true,
+            },
           })
         )
       )
     }
 
-    return NextResponse.json(settingsMap)
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Error fetching settings:', error)
     return NextResponse.json(
@@ -69,14 +79,14 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
 
-    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    if (!Array.isArray(body)) {
       return NextResponse.json(
-        { error: 'فرمت داده نامعتبر. یک آبجکت key/value ارسال کنید' },
+        { error: 'فرمت داده نامعتبر' },
         { status: 400 }
       )
     }
 
-    const entries = Object.entries(body) as [string, string][]
+    const entries = body as Array<{ key: string; value: string; isSecret: boolean }>
 
     if (entries.length === 0) {
       return NextResponse.json(
@@ -85,24 +95,54 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Upsert all settings
+    // Collect keys whose current DB values we need to preserve
+    const existingKeys = entries
+      .filter((e) => e.value === MASKED_VALUE)
+      .map((e) => e.key)
+
+    const existingRecords = existingKeys.length > 0
+      ? await prisma.setting.findMany({ where: { key: { in: existingKeys } } })
+      : []
+    const existingMap = new Map(existingRecords.map((r) => [r.key, r.value]))
+
     const results = await Promise.all(
-      entries.map(([key, value]) =>
-        prisma.setting.upsert({
-          where: { key },
-          update: { value: serializeSettingValue(key, String(value)) },
-          create: { key, value: serializeSettingValue(key, String(value)) },
+      entries.map((entry) => {
+        const isMasked = entry.value === MASKED_VALUE
+        const shouldEncrypt = entry.isSecret || isSensitiveSettingKey(entry.key)
+
+        // If value is masked, keep the existing encrypted value
+        const rawValue = isMasked
+          ? (existingMap.get(entry.key) || '')
+          : shouldEncrypt
+            ? serializeSettingValue(entry.key, String(entry.value))
+            : String(entry.value)
+
+        return prisma.setting.upsert({
+          where: { key: entry.key },
+          update: { value: rawValue, isSecret: shouldEncrypt },
+          create: { key: entry.key, value: rawValue, isSecret: shouldEncrypt },
         })
-      )
+      })
     )
 
-    // Return updated settings map
-    const settingsMap: Record<string, string> = {}
-    for (const setting of results) {
-      settingsMap[setting.key] = deserializeSettingValue(setting.key, setting.value)
+    // Find keys in DB that are NOT in the request → they were deleted
+    const sentKeys = new Set(entries.map((e) => e.key))
+    const allCurrent = await prisma.setting.findMany({ select: { key: true } })
+    const keysToDelete = allCurrent
+      .map((r) => r.key)
+      .filter((k) => !sentKeys.has(k))
+
+    if (keysToDelete.length > 0) {
+      await prisma.setting.deleteMany({ where: { key: { in: keysToDelete } } })
     }
 
-    return NextResponse.json(settingsMap)
+    const response: Array<{ key: string; value: string; isSecret: boolean }> = results.map((r) => ({
+      key: r.key,
+      value: r.isSecret && r.value ? MASKED_VALUE : deserializeSettingValue(r.key, r.value),
+      isSecret: r.isSecret,
+    }))
+
+    return NextResponse.json(response)
   } catch (error) {
     console.error('Error updating settings:', error)
     return NextResponse.json(
